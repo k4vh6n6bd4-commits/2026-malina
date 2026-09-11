@@ -1,161 +1,62 @@
-import React, { useMemo, useState } from "react";
-import {
-  BookOpen, ChevronRight, GraduationCap, Plus, Target, Trash2, TrendingUp
-} from "lucide-react";
-import {
-  CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis
-} from "recharts";
-const gradePoints={A:4,"A-":3.7,"B+":3.3,B:3,"B-":2.7,"C+":2.3,C:2,"C-":1.7,D:1,F:0};
-const grades=Object.keys(gradePoints);
-const freshCourse=()=>({
-  name:"",
-  credits:"3",
-  grade:"A",
-  currentScore:"",
-  targetScore:"90"
-});
-const id=()=>crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+import React,{useMemo,useState} from "react";
+import {BookOpen,CalendarDays,Check,ChevronDown,ChevronUp,ClipboardList,Clock,Edit3,GraduationCap,ListChecks,Plus,Target,Trash2,TrendingUp} from "lucide-react";
+import {CartesianGrid,Line,LineChart,ResponsiveContainer,Tooltip,XAxis,YAxis} from "recharts";
+import {countdown,courseItems,gradePoints,preparationTasks,progressFor,scoreStats,semesterStats,validatePoints} from "./academicUtils.js";
 
-function calculate(courses=[]){
-  const credits=courses.reduce((sum,course)=>sum+Number(course.credits||0),0);
-  const points=courses.reduce((sum,course)=>sum+Number(course.credits||0)*gradePoints[course.grade],0);
-  return {credits,points,gpa:credits?points/credits:0};
+const grades=Object.keys(gradePoints),uid=()=>crypto?.randomUUID?.()||`${Date.now()}-${Math.random()}`;
+const blankCourse=()=>({name:"",credits:3,grade:"A",currentScore:"",targetScore:90});
+const blankAssignment=()=>({name:"",type:"Assignment",description:"",date:"",time:"",maxPoints:"",earnedPoints:"",priority:"medium",estimatedMinutes:60,status:"Not started",progress:0,subtasks:[]});
+const blankExam=()=>({name:"",type:"Final",date:"",time:"",maxPoints:"",earnedPoints:"",targetScore:"",status:"Upcoming",topics:[],prepTasks:[]});
+const blankAssessment=()=>({name:"",type:"Quiz",maxPoints:"",earnedPoints:"",date:"",status:"Upcoming"});
+const fmt=n=>Number(n||0).toFixed(Number(n||0)%1?1:0);
+
+function Stat({label,value,detail}){return <div className="rounded-2xl border border-[#eadde1] bg-[#fffdfc] p-4"><div className="text-[10px] font-bold uppercase tracking-widest text-[#a07d89]">{label}</div><div className="serif mt-1 text-2xl font-bold text-[#633848]">{value}</div><div className="mt-1 truncate text-xs text-[#967683]">{detail}</div></div>}
+function Field({label,children}){return <label className="block min-w-0 text-xs font-bold text-[#694454]">{label}{children}</label>}
+function Bar({value}){return <div className="h-2 overflow-hidden rounded-full bg-[#eadde1]"><div className="h-full rounded-full bg-[#8d5366] transition-all" style={{width:`${Math.min(100,Math.max(0,value||0))}%`}}/></div>}
+function Score({course}){const s=scoreStats(course);return !s.totalPossible?<p className="rounded-2xl bg-[#faf5f6] p-3 text-xs text-[#967683]">Assessment нэмэхэд score автоматаар тооцогдоно.</p>:<div className="grid gap-3 rounded-2xl bg-[#f8edf1] p-4 sm:grid-cols-3"><div><small>Current</small><b className="block text-lg">{fmt(s.earned)} / {fmt(s.gradedPossible)}</b><small>{s.currentPercent.toFixed(1)}%</small></div><div><small>Total / remaining</small><b className="block text-lg">{fmt(s.totalPossible)} pts</b><small>{fmt(s.remainingPossible)} remaining</small></div><div><small>Target {fmt(s.targetPercent)}%</small><b className="block text-lg">{fmt(s.targetPoints)} / {fmt(s.totalPossible)}</b><small>{s.targetReached?"Target reached ✓":s.impossible?`⚠️ Impossible · max ${fmt(s.maximum)}`:`Required ${fmt(s.required)} / ${fmt(s.remainingPossible)}`}</small></div></div>}
+
+export default function Education({education={},onChange,Card,SectionTitle,Empty,notify,addTask,syncEducationEvent,today}){
+ const semesters=education.semesters||[],[semesterName,setSemesterName]=useState(""),[selected,setSelected]=useState(semesters.find(s=>s.active)?.id||semesters.at(-1)?.id||"");
+ const [course,setCourse]=useState(blankCourse),[editingCourse,setEditingCourse]=useState(""),[openCourse,setOpenCourse]=useState(""),[tab,setTab]=useState("courses"),[formCourse,setFormCourse]=useState("");
+ const [assignment,setAssignment]=useState(blankAssignment),[exam,setExam]=useState(blankExam),[assessment,setAssessment]=useState(blankAssessment),[editing,setEditing]=useState(null),[error,setError]=useState("");
+ const active=semesters.find(s=>s.id===selected)||semesters.at(-1),courses=active?.courses||[],allCourses=semesters.flatMap(s=>s.courses||[]),overall=semesterStats(allCourses),current=semesterStats(courses);
+ const assignments=allCourses.flatMap(c=>(c.assignments||[]).map(x=>({...x,course:c}))),exams=allCourses.flatMap(c=>(c.exams||[]).map(x=>({...x,course:c}))),chosen=formCourse||courses[0]?.id||"";
+ const deadlines=[...assignments.map(x=>({...x,kind:"Assignment"})),...exams.map(x=>({...x,kind:"Exam"}))].filter(x=>x.date&&x.status!=="Completed").sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+ const target=Number(education.targetGpa||3.8),future=Math.max(1,Number(education.futureCredits||15)),needed=(target*(overall.credits+future)-overall.points)/future,goalProgress=overall.credits?Math.min(100,overall.gpa/target*100):0;
+ const history=useMemo(()=>{let cr=0,pt=0;return semesters.map(s=>{const x=semesterStats(s.courses||[]);cr+=x.credits;pt+=x.points;return{name:s.name,semester:+x.gpa.toFixed(2),cumulative:+(cr?pt/cr:0).toFixed(2)}})},[semesters]);
+ const update=x=>onChange({...education,...x}),setSemesters=x=>update({semesters:x});
+ const mapCourse=(id,fn)=>setSemesters(semesters.map(s=>({...s,courses:(s.courses||[]).map(c=>c.id===id?fn(c):c)})));
+ const courseName=id=>allCourses.find(c=>c.id===id)?.name||"Course";
+ function addSemester(){if(!semesterName.trim())return setError("Semester name required.");const s={id:uid(),name:semesterName.trim(),courses:[],active:true};setSemesters([...semesters.map(x=>({...x,active:false})),s]);setSelected(s.id);setSemesterName("");setError("")}
+ function chooseSemester(id){setSelected(id);setSemesters(semesters.map(s=>({...s,active:s.id===id})))}
+ function saveCourse(){if(!course.name.trim())return setError("Course name required.");if(Number(course.credits)<=0)return setError("Credits must be greater than 0.");const value={...course,name:course.name.trim(),credits:Number(course.credits),targetScore:Math.min(100,Math.max(0,Number(course.targetScore)||90))};if(editingCourse)mapCourse(editingCourse,c=>({...c,...value}));else setSemesters(semesters.map(s=>s.id===active?.id?{...s,courses:[...(s.courses||[]),{...value,id:uid(),assessments:[],assignments:[],exams:[]}]}:s));setEditingCourse("");setCourse(blankCourse());setError("");notify("Course хадгалагдлаа")}
+ function startCourse(c){setEditingCourse(c.id);setCourse({...blankCourse(),...c})}
+ function removeCourse(id){if(confirm("Энэ course болон бүх academic record-ийг устгах уу?"))setSemesters(semesters.map(s=>({...s,courses:(s.courses||[]).filter(c=>c.id!==id)})))}
+ function saveItem(kind,courseId=chosen){const value=kind==="assignment"?assignment:kind==="exam"?exam:assessment,key=kind==="assignment"?"assignments":kind==="exam"?"exams":"assessments";if(!courseId)return setError("Course сонгоно уу.");if(!value.name.trim())return setError("Name required.");const pointError=validatePoints(value.maxPoints,value.earnedPoints);if(pointError)return setError(pointError);if(kind!=="assessment"&&!value.date)return setError("Valid date required.");let saved={...value,id:editing?.id||uid(),name:value.name.trim(),maxPoints:Number(value.maxPoints),earnedPoints:value.earnedPoints===""?"":Number(value.earnedPoints)};if(kind==="exam"&&!saved.prepTasks?.length)saved={...saved,...preparationTasks(saved)};mapCourse(courseId,c=>({...c,[key]:editing?(c[key]||[]).map(x=>x.id===editing.id?saved:x):[...(c[key]||[]),saved]}));if(kind!=="assessment")syncEducationEvent?.({sourceId:saved.id,title:`${courseName(courseId)} — ${saved.name}`,date:saved.date,time:saved.time,type:kind});setAssignment(blankAssignment());setExam(blankExam());setAssessment(blankAssessment());setEditing(null);setError("");notify(`${kind} хадгалагдлаа`)}
+ function startItem(kind,c,item){setFormCourse(c.id);setEditing({id:item.id,kind});kind==="assignment"?setAssignment({...blankAssignment(),...item}):kind==="exam"?setExam({...blankExam(),...item}):setAssessment({...blankAssessment(),...item});setTab(kind==="assessment"?"courses":`${kind}s`)}
+ function removeItem(kind,cid,id){if(!confirm("Энэ record-ийг устгах уу?"))return;const key=kind==="assignment"?"assignments":kind==="exam"?"exams":"assessments";mapCourse(cid,c=>({...c,[key]:(c[key]||[]).filter(x=>x.id!==id)}))}
+ function addSubtask(cid,item){const name=prompt("Subtask нэр");if(name?.trim())mapCourse(cid,c=>({...c,assignments:(c.assignments||[]).map(a=>a.id===item.id?{...a,subtasks:[...(a.subtasks||[]),{id:uid(),name:name.trim(),done:false}]}:a)}))}
+ function toggleSubtask(cid,aid,tid){mapCourse(cid,c=>({...c,assignments:(c.assignments||[]).map(a=>a.id===aid?{...a,subtasks:(a.subtasks||[]).map(t=>t.id===tid?{...t,done:!t.done}:t)}:a)}))}
+ function togglePrep(cid,eid,tid){mapCourse(cid,c=>({...c,exams:(c.exams||[]).map(e=>e.id===eid?{...e,prepTasks:(e.prepTasks||[]).map(t=>t.id===tid?{...t,done:!t.done}:t)}:e)}))}
+ const study=exams.filter(e=>e.date&&e.status!=="Completed").sort((a,b)=>a.date.localeCompare(b.date)).find(e=>(e.prepTasks||[]).some(t=>!t.done));
+ return <div className="education space-y-5">
+  <div className="education-hero"><div><div className="flex items-center gap-2 text-sm font-bold text-[#f1dce4]"><GraduationCap size={18}/> Education Dashboard</div><h1 className="serif mt-3 text-3xl font-bold md:text-4xl">Your academic command center.</h1><p className="mt-2 text-sm text-[#f4e7eb]">Оноо, deadline, шалгалтын бэлтгэлээ нэг холбоотой системээр удирд.</p></div><div className="rounded-3xl bg-white/10 p-4"><div className="flex justify-between text-sm"><span>GPA target</span><b>{goalProgress.toFixed(0)}%</b></div><Bar value={goalProgress}/><div className="mt-3 flex justify-between text-xs"><span>{overall.gpa.toFixed(2)} overall</span><span>{target.toFixed(2)} target</span></div></div></div>
+  <div className="grid grid-cols-2 gap-3 xl:grid-cols-7"><Stat label="Current GPA" value={current.gpa.toFixed(2)} detail={active?.name||"No semester"}/><Stat label="Overall GPA" value={overall.gpa.toFixed(2)} detail="Credit weighted"/><Stat label="Credits" value={overall.credits} detail="Total"/><Stat label="Courses" value={courses.length} detail="Active"/><Stat label="Semester" value={active?.name||"—"} detail={`${current.credits} credits`}/><Stat label="Exams" value={exams.filter(x=>x.status!=="Completed").length} detail="Upcoming"/><Stat label="Assignments" value={assignments.filter(x=>x.status!=="Completed").length} detail="Upcoming"/></div>
+  <div className="grid gap-5 xl:grid-cols-[1fr_.7fr]"><Card><SectionTitle icon={BookOpen} title="Semesters & Courses" sub="Existing GPA + connected point scores"/><div className="flex gap-2 overflow-x-auto pb-2">{semesters.map(s=><button key={s.id} onClick={()=>chooseSemester(s.id)} className={`shrink-0 rounded-2xl px-4 py-2 text-sm font-bold ${active?.id===s.id?"bg-[#7b3f55] text-white":"bg-[#f5e8ed] text-[#713a50]"}`}>{s.name}</button>)}</div><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><input className="field" value={semesterName} onChange={e=>setSemesterName(e.target.value)} placeholder="2026 Spring"/><button className="btn btn-soft" onClick={addSemester}><Plus size={17} className="inline"/> Semester</button></div>{active&&<><div className="mt-4 flex items-center justify-between rounded-2xl bg-[#faf5f6] p-3"><div><b>{active.name}</b><small className="block text-[#967683]">{courses.length} courses · {current.credits} credits · GPA {current.gpa.toFixed(2)}</small></div><div><button className="icon-btn" onClick={()=>{const name=prompt("Semester нэр",active.name);if(name?.trim())setSemesters(semesters.map(s=>s.id===active.id?{...s,name:name.trim()}:s))}}><Edit3 size={16}/></button><button className="icon-btn text-red-700" onClick={()=>{if(confirm("Semester болон бүх course-ийг устгах уу?")){const x=semesters.filter(s=>s.id!==active.id);setSemesters(x);setSelected(x.at(-1)?.id||"")}}}><Trash2 size={16}/></button></div></div><div className="mt-4 grid gap-2 md:grid-cols-[1fr_80px_90px_90px_90px_auto]"><input className="field" value={course.name} onChange={e=>setCourse({...course,name:e.target.value})} placeholder="Course name"/><input className="field" type="number" min="0.5" value={course.credits} onChange={e=>setCourse({...course,credits:e.target.value})}/><input className="field" type="number" min="0" max="100" value={course.currentScore} onChange={e=>setCourse({...course,currentScore:e.target.value})} placeholder="Current"/><input className="field" type="number" min="0" max="100" value={course.targetScore} onChange={e=>setCourse({...course,targetScore:e.target.value})} placeholder="Target"/><select className="field" value={course.grade} onChange={e=>setCourse({...course,grade:e.target.value})}>{grades.map(g=><option key={g}>{g}</option>)}</select><button className="btn btn-primary" onClick={saveCourse}>{editingCourse?<Check size={18}/>:<Plus size={18}/>}</button></div></>}{error&&<p className="mt-3 rounded-xl bg-red-50 p-3 text-xs font-bold text-red-700">{error}</p>}</Card><Card><SectionTitle icon={Target} title="GPA Goal" sub="GPA and score stay separate"/><Field label="Target GPA"><input className="field mt-1" type="number" min="0" max="4" step=".01" value={education.targetGpa??3.8} onChange={e=>update({targetGpa:Number(e.target.value)})}/></Field><Field label="Future credits"><input className="field mt-1" type="number" min="1" value={education.futureCredits??15} onChange={e=>update({futureCredits:Number(e.target.value)})}/></Field><div className="mt-4 rounded-2xl bg-[#f5e8ed] p-4"><small>GPA needed next</small><div className="serif text-4xl font-bold text-[#633848]">{overall.credits?Math.max(0,needed).toFixed(2):target.toFixed(2)}</div><p className="text-xs">{needed>4?"This target needs more credits.":needed<=0?"Target reached.":`Average across ${future} credits.`}</p></div></Card></div>
+  <div className="education-tabs"><button className={tab==="courses"?"active":""} onClick={()=>setTab("courses")}><BookOpen size={17}/> Courses</button><button className={tab==="assignments"?"active":""} onClick={()=>setTab("assignments")}><ClipboardList size={17}/> Assignments</button><button className={tab==="exams"?"active":""} onClick={()=>setTab("exams")}><CalendarDays size={17}/> Exams</button></div>
+  {tab==="courses"&&<Courses courses={courses} openCourse={openCourse} setOpenCourse={setOpenCourse} assessment={assessment} setAssessment={setAssessment} saveItem={saveItem} startCourse={startCourse} removeCourse={removeCourse} startItem={startItem} removeItem={removeItem} Empty={Empty}/>}
+  {tab==="assignments"&&<><ItemForm kind="assignment" courses={courses} chosen={chosen} setFormCourse={setFormCourse} value={assignment} setValue={setAssignment} save={()=>saveItem("assignment")} editing={editing}/><AssignmentCards items={assignments} startItem={startItem} removeItem={removeItem} addSubtask={addSubtask} toggleSubtask={toggleSubtask} addTask={addTask} today={today} Empty={Empty}/></>}
+  {tab==="exams"&&<><ItemForm kind="exam" courses={courses} chosen={chosen} setFormCourse={setFormCourse} value={exam} setValue={setExam} save={()=>saveItem("exam")} editing={editing}/><ExamCards items={exams} allCourses={allCourses} startItem={startItem} removeItem={removeItem} togglePrep={togglePrep} addTask={addTask} today={today} Empty={Empty}/></>}
+  <div className="grid gap-5 xl:grid-cols-2"><Card><SectionTitle icon={Clock} title="Upcoming Deadlines" sub="Nearest academic dates"/>{deadlines.length?<div className="space-y-2">{deadlines.slice(0,6).map((x,i)=><div key={x.id} className="deadline-row"><i className={i<2?"urgent":i<4?"soon":"later"}/><div className="min-w-0 flex-1"><b className="block truncate">{x.name}</b><small>{x.course.name} · {x.kind}</small></div><span>{countdown(x.date,x.time)}</span></div>)}</div>:<Empty text="Upcoming deadline алга."/>}</Card><Card><SectionTitle icon={ListChecks} title="Today's Study" sub="Nearest exam focus"/>{study?<div className="rounded-2xl bg-[#f8edf1] p-4"><b>{study.course.name} · {study.name}</b><p className="text-xs text-[#967683]">{countdown(study.date,study.time)} · {study.focus}</p>{study.prepTasks.filter(t=>!t.done).slice(0,2).map(t=><p key={t.id} className="mt-2 text-sm">• {t.name} ({t.minutes||30} min)</p>)}<button className="btn btn-primary mt-3" onClick={()=>{const t=study.prepTasks.find(x=>!x.done);addTask?.(`📚 ${study.course.name} — ${t.name}`,today,{time:"14:00",estimatedMinutes:t.minutes,sourceId:study.id})}}>Add to Today's Plan</button></div>:<Empty text="Topics бүхий upcoming exam нэмнэ үү."/>}</Card></div>
+  <Card><SectionTitle icon={TrendingUp} title="Semester History" sub="Semester and cumulative GPA"/>{history.length?<div className="h-64"><ResponsiveContainer width="100%" height="100%"><LineChart data={history}><CartesianGrid stroke="#eadde1" strokeDasharray="4 4"/><XAxis dataKey="name"/><YAxis domain={[0,4]}/><Tooltip/><Line dataKey="semester" stroke="#b98599" strokeWidth={2}/><Line dataKey="cumulative" stroke="#7b3f55" strokeWidth={3}/></LineChart></ResponsiveContainer></div>:<Empty text="Course нэмсний дараа history харагдана."/>}</Card>
+ </div>
 }
 
-function Stat({label,value,detail}){
-  return <div className="rounded-2xl border border-[#eadde1] bg-[#fffdfc] p-4">
-    <div className="text-xs font-bold uppercase tracking-widest text-[#a07d89]">{label}</div>
-    <div className="serif mt-2 text-3xl font-bold text-[#633848]">{value}</div>
-    {detail&&<div className="mt-1 text-xs text-[#967683]">{detail}</div>}
-  </div>
-}
+function CourseSelect({courses,value,onChange}){return <Field label="Course"><select className="field mt-1" value={value} onChange={e=>onChange(e.target.value)}><option value="">Select course</option>{courses.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>}
+function Courses({courses,openCourse,setOpenCourse,assessment,setAssessment,saveItem,startCourse,removeCourse,startItem,removeItem,Empty}){if(!courses.length)return <Empty text="Энэ semester-т course нэмээгүй байна."/>;return <div className="space-y-3">{courses.map(c=>{const s=scoreStats(c),open=openCourse===c.id;return <section key={c.id} className="card p-4 md:p-5"><div className="flex justify-between gap-3"><button className="min-w-0 flex-1 text-left" onClick={()=>setOpenCourse(open?"":c.id)}><h3 className="serif truncate text-xl font-bold">{c.name}</h3><small>{c.credits} credits · Grade {c.grade} · Target {c.targetScore||90}%</small></button><div className="flex items-center"><b className="mr-2">{s.totalPossible?`${fmt(s.earned)}/${fmt(s.totalPossible)}`:`${c.currentScore||"—"}/100`}</b><button className="icon-btn" onClick={()=>startCourse(c)}><Edit3 size={15}/></button><button className="icon-btn" onClick={()=>removeCourse(c.id)}><Trash2 size={15}/></button><button className="icon-btn" onClick={()=>setOpenCourse(open?"":c.id)}>{open?<ChevronUp size={16}/>:<ChevronDown size={16}/>}</button></div></div><div className="mt-3"><Score course={c}/></div>{open&&<div className="mt-4"><div className="grid gap-2 md:grid-cols-[1fr_140px_90px_90px_130px_auto]"><input className="field" value={assessment.name} onChange={e=>setAssessment({...assessment,name:e.target.value})} placeholder="Assessment"/><select className="field" value={assessment.type} onChange={e=>setAssessment({...assessment,type:e.target.value})}>{["Assignment / Бие даалт","Quiz","Midterm","Final exam","Attendance","Presentation","Project","Other"].map(x=><option key={x}>{x}</option>)}</select><input className="field" type="number" value={assessment.maxPoints} onChange={e=>setAssessment({...assessment,maxPoints:e.target.value})} placeholder="Max"/><input className="field" type="number" value={assessment.earnedPoints} onChange={e=>setAssessment({...assessment,earnedPoints:e.target.value})} placeholder="Earned"/><input className="field" type="date" value={assessment.date} onChange={e=>setAssessment({...assessment,date:e.target.value})}/><button className="btn btn-soft" onClick={()=>saveItem("assessment",c.id)}><Plus size={16}/></button></div><div className="mt-3 space-y-2">{courseItems(c).map(x=><div key={x.id} className="record-row"><div><b>{x.name}</b><small>{x.type} · {x.date||"No date"}</small></div><span>{x.earnedPoints===""||x.earnedPoints==null?"—":x.earnedPoints}/{x.maxPoints}</span>{(c.assessments||[]).some(a=>a.id===x.id)&&<><button onClick={()=>startItem("assessment",c,x)}><Edit3 size={14}/></button><button onClick={()=>removeItem("assessment",c.id,x.id)}><Trash2 size={14}/></button></>}</div>)}</div></div>}</section>})}</div>}
 
-export default function Education({education,onChange,Card,SectionTitle,Empty,notify}){
-  const [semesterName,setSemesterName]=useState("");
-  const [selected,setSelected]=useState(education.semesters.at(-1)?.id||"");
-  const [course,setCourse]=useState(freshCourse);
-  const allCourses=education.semesters.flatMap(semester=>semester.courses||[]);
-  const overall=calculate(allCourses);
-  const active=education.semesters.find(semester=>semester.id===selected) || education.semesters.at(-1);
-  const target=Number(education.targetGpa||3.8);
-  const futureCredits=Math.max(1,Number(education.futureCredits||15));
-  const needed=(target*(overall.credits+futureCredits)-overall.points)/futureCredits;
-  const progress=overall.credits?Math.min(100,Math.max(0,overall.gpa/target*100)):0;
+function ItemForm({kind,courses,chosen,setFormCourse,value,setValue,save,editing}){const exam=kind==="exam";return <section className="card p-4 md:p-5"><h2 className="text-lg font-extrabold">{editing?.kind===kind?"Edit":"Add"} {exam?"Exam":"Assignment"}</h2><CourseSelect courses={courses} value={chosen} onChange={setFormCourse}/><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4"><Field label="Name"><input className="field mt-1" value={value.name} onChange={e=>setValue({...value,name:e.target.value})}/></Field><Field label="Type"><select className="field mt-1" value={value.type} onChange={e=>setValue({...value,type:e.target.value})}>{(exam?["Midterm","Final","Quiz","Other"]:["Assignment","Бие даалт","Presentation","Project","Other"]).map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Date"><input className="field mt-1" type="date" value={value.date} onChange={e=>setValue({...value,date:e.target.value})}/></Field><Field label="Time"><input className="field mt-1" type="time" value={value.time} onChange={e=>setValue({...value,time:e.target.value})}/></Field><Field label="Maximum points"><input className="field mt-1" type="number" min="0" value={value.maxPoints} onChange={e=>setValue({...value,maxPoints:e.target.value})}/></Field><Field label="Earned points"><input className="field mt-1" type="number" min="0" value={value.earnedPoints} onChange={e=>setValue({...value,earnedPoints:e.target.value})}/></Field>{exam?<><Field label="Target %"><input className="field mt-1" type="number" min="0" max="100" value={value.targetScore} onChange={e=>setValue({...value,targetScore:e.target.value})}/></Field><Field label="Topics (comma separated)"><input className="field mt-1" value={(value.topics||[]).map(x=>typeof x==="string"?x:x.name).join(", ")} onChange={e=>setValue({...value,topics:e.target.value.split(",").map(x=>x.trim()).filter(Boolean),prepTasks:[]})}/></Field></>:<><Field label="Priority"><select className="field mt-1" value={value.priority} onChange={e=>setValue({...value,priority:e.target.value})}>{["low","medium","high"].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Estimated minutes"><input className="field mt-1" type="number" min="1" value={value.estimatedMinutes} onChange={e=>setValue({...value,estimatedMinutes:e.target.value})}/></Field><Field label="Status"><select className="field mt-1" value={value.status} onChange={e=>setValue({...value,status:e.target.value})}>{["Not started","In progress","Completed"].map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Description"><textarea className="field mt-1" value={value.description} onChange={e=>setValue({...value,description:e.target.value})}/></Field></>}</div><button className="btn btn-primary mt-4" onClick={save}>Save {exam?"exam":"assignment"}</button></section>}
 
-  const history=useMemo(()=>{
-    let credits=0,points=0;
-    return education.semesters.map(semester=>{
-      const result=calculate(semester.courses);
-      credits+=result.credits;points+=result.points;
-      return {name:semester.name,semester:Number(result.gpa.toFixed(2)),cumulative:Number((credits?points/credits:0).toFixed(2))};
-    });
-  },[education.semesters]);
-
-  function update(next){onChange({...education,...next})}
-  function addSemester(){
-    const name=semesterName.trim(); if(!name)return;
-    const semester={id:id(),name,courses:[]};
-    update({semesters:[...education.semesters,semester]});setSelected(semester.id);setSemesterName("");notify("Semester нэмэгдлээ");
-  }
-  function deleteSemester(semesterId){
-    if(!confirm("Энэ semester болон бүх хичээлийг устгах уу?"))return;
-    const semesters=education.semesters.filter(x=>x.id!==semesterId);update({semesters});setSelected(semesters.at(-1)?.id||"");
-  }
-  function addCourse(){
-    if(!active||!course.name.trim()||Number(course.credits)<=0)return;
-    const semesters=education.semesters.map(s=>s.id===active.id?{...s,courses:[...(s.courses||[]),{...course,id:id(),name:course.name.trim(),credits:Number(course.credits)}]}:s);
-    update({semesters});setCourse(freshCourse());notify("Course нэмэгдлээ");
-  }
-  function deleteCourse(courseId){
-    update({semesters:education.semesters.map(s=>s.id===active.id?{...s,courses:s.courses.filter(c=>c.id!==courseId)}:s)});
-  }
-
-  return <div className="space-y-5">
-    <div className="overflow-hidden rounded-[28px] bg-[#7b3f55] text-white shadow-xl">
-      <div className="grid gap-6 p-6 md:grid-cols-[1.4fr_.8fr] md:p-8">
-        <div><div className="flex items-center gap-2 text-sm font-bold text-[#f1dce4]"><GraduationCap size={18}/> Education Dashboard</div><h1 className="serif mt-3 text-3xl font-bold md:text-4xl">Build the GPA you want.</h1><p className="mt-2 max-w-xl text-sm text-[#f4e7eb]">Semester бүрийн ахицыг нэг дор хянаж, дараагийн зорилгоо бодитоор төлөвлө.</p></div>
-        <div className="rounded-3xl bg-white/10 p-4 backdrop-blur"><div className="flex items-end justify-between"><span className="text-sm text-[#f1dce4]">Target progress</span><b>{progress.toFixed(0)}%</b></div><div className="mt-3 h-3 overflow-hidden rounded-full bg-white/20"><div className="h-full rounded-full bg-[#f5dce5] transition-all" style={{width:`${progress}%`}}/></div><div className="mt-3 flex items-center justify-between text-xs"><span>{overall.gpa.toFixed(2)} current</span><ChevronRight size={16}/><span>{target.toFixed(2)} target</span></div></div>
-      </div>
-    </div>
-
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Stat label="Current GPA" value={overall.gpa.toFixed(2)} detail="Cumulative weighted GPA"/>
-      <Stat label="Target GPA" value={target.toFixed(2)} detail="Your GPA goal"/>
-      <Stat label="Total credits" value={overall.credits} detail="GPA credits completed"/>
-      <Stat label="Current courses" value={active?.courses?.length||0} detail={active?.name||"No semester yet"}/>
-    </div>
-
-    <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-      <Card><SectionTitle icon={BookOpen} title="GPA Tracker" sub="Semester болон хичээлүүд"/>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {education.semesters.map(semester=><button key={semester.id} onClick={()=>setSelected(semester.id)} className={`shrink-0 rounded-2xl px-4 py-2 text-sm font-bold ${active?.id===semester.id?"bg-[#7b3f55] text-white":"bg-[#f5e8ed] text-[#713a50]"}`}>{semester.name}</button>)}
-        </div>
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><input className="field" value={semesterName} onChange={e=>setSemesterName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addSemester()} placeholder="Жишээ: 2026 Spring"/><button className="btn btn-soft" onClick={addSemester}><Plus size={18} className="inline"/> Semester</button></div>
-        {active?<div className="mt-5">
-          <div className="mb-3 flex items-center justify-between"><div><h3 className="font-extrabold">{active.name}</h3><div className="text-xs text-[#967683]">Semester GPA: {calculate(active.courses).gpa.toFixed(2)}</div></div><button onClick={()=>deleteSemester(active.id)} className="rounded-xl p-2 text-[#a35d6c] hover:bg-red-50" aria-label="Delete semester"><Trash2 size={17}/></button></div>
-         <div className="grid gap-2 md:grid-cols-[1fr_90px_100px_100px_100px_auto]">
-  <input
-    className="field"
-    value={course.name}
-    onChange={e=>setCourse({...course,name:e.target.value})}
-    placeholder="Хичээлийн нэр"
-  />
-
-  <input
-    className="field"
-    type="number"
-    min="0.5"
-    step="0.5"
-    value={course.credits}
-    onChange={e=>setCourse({...course,credits:e.target.value})}
-    placeholder="Credit"
-  />
-
-  <input
-    className="field"
-    type="number"
-    min="0"
-    max="100"
-    value={course.currentScore}
-    onChange={e=>setCourse({...course,currentScore:e.target.value})}
-    placeholder="Одоогийн"
-  />
-
-  <input
-    className="field"
-    type="number"
-    min="0"
-    max="100"
-    value={course.targetScore}
-    onChange={e=>setCourse({...course,targetScore:e.target.value})}
-    placeholder="Авах оноо"
-  />
-
-  <select
-    className="field"
-    value={course.grade}
-    onChange={e=>setCourse({...course,grade:e.target.value})}
-  >
-    {grades.map(g=><option key={g}>{g}</option>)}
-  </select>
-
-  <button className="btn btn-primary" onClick={addCourse}>
-    <Plus size={18}/>
-  </button>
-</div>
-        </div>:<div className="mt-5"><Empty text="Эхний semester-ээ нэмээд GPA tracking эхлүүлээрэй."/></div>}
-      </Card>
-
-      <Card><SectionTitle icon={Target} title="GPA Goal" sub="Дараагийн credit-ийн шаардлага"/>
-        <label className="text-sm font-bold">Target GPA<input className="field mt-1" type="number" min="0" max="4" step="0.01" value={education.targetGpa} onChange={e=>update({targetGpa:Number(e.target.value)})}/></label>
-        <label className="mt-3 block text-sm font-bold">Future credits<input className="field mt-1" type="number" min="1" step="1" value={education.futureCredits} onChange={e=>update({futureCredits:Number(e.target.value)})}/></label>
-        <div className="mt-4 rounded-2xl bg-[#f5e8ed] p-4"><div className="text-xs font-bold uppercase tracking-wider text-[#967683]">GPA needed next</div><div className="serif mt-1 text-4xl font-bold text-[#633848]">{overall.credits?Math.max(0,needed).toFixed(2):target.toFixed(2)}</div><p className="mt-2 text-xs text-[#825c6b]">{needed>4?"This target needs more credits or a longer timeline.":needed<=0?"You have already reached this target.":`Average needed across the next ${futureCredits} credits.`}</p></div>
-      </Card>
-    </div>
-
-    <Card><SectionTitle icon={TrendingUp} title="Semester History" sub="Semester GPA ба cumulative progression"/>
-      {history.length?<div className="h-72 w-full"><ResponsiveContainer width="100%" height="100%"><LineChart data={history} margin={{top:10,right:12,left:-18,bottom:8}}><CartesianGrid stroke="#eadde1" strokeDasharray="4 4"/><XAxis dataKey="name" tick={{fontSize:11,fill:"#8b6b77"}}/><YAxis domain={[0,4]} ticks={[0,1,2,3,4]} tick={{fontSize:11,fill:"#8b6b77"}}/><Tooltip/><Line type="monotone" dataKey="semester" stroke="#b98599" strokeWidth={2} dot={{r:4}}/><Line type="monotone" dataKey="cumulative" stroke="#7b3f55" strokeWidth={3} dot={{r:5}}/></LineChart></ResponsiveContainer></div>:<Empty text="Semester history chart course нэмсний дараа харагдана."/>}
-      {history.length>0&&<div className="mt-3 flex flex-wrap gap-4 text-xs font-bold text-[#825c6b]"><span><i className="mr-2 inline-block h-2 w-5 rounded bg-[#b98599]"/>Semester GPA</span><span><i className="mr-2 inline-block h-2 w-5 rounded bg-[#7b3f55]"/>Cumulative GPA</span></div>}
-    </Card>
-  </div>
-}
+function AssignmentCards({items,startItem,removeItem,addSubtask,toggleSubtask,addTask,today,Empty}){if(!items.length)return <Empty text="Assignment нэмээгүй байна."/>;return <div className="grid gap-4 xl:grid-cols-2">{items.map(a=>{const p=progressFor(a);return <section key={a.id} className="academic-card"><CardHead item={a} edit={()=>startItem("assignment",a.course,a)} remove={()=>removeItem("assignment",a.course.id,a.id)}/><div className="mt-3 flex justify-between text-xs"><span>Score <b>{a.earnedPoints===""?"—":a.earnedPoints}/{a.maxPoints}</b></span><span>{countdown(a.date,a.time,a.status==="Completed")}</span></div><div className="mt-3 flex justify-between text-xs"><span>{(a.subtasks||[]).filter(t=>t.done).length}/{(a.subtasks||[]).length} subtasks</span><b>{p}%</b></div><Bar value={p}/>{(a.subtasks||[]).map(t=><label key={t.id} className="mt-2 flex gap-2 text-sm"><input className="check" type="checkbox" checked={t.done} onChange={()=>toggleSubtask(a.course.id,a.id,t.id)}/><span className={t.done?"line-through opacity-60":""}>{t.name}</span></label>)}<div className="mt-3 flex flex-wrap gap-2"><button className="btn btn-ghost text-xs" onClick={()=>addSubtask(a.course.id,a)}><Plus size={14} className="inline"/> Subtask</button><button className="btn btn-soft text-xs" onClick={()=>addTask?.(`${a.course.name} — ${a.name}`,a.date||today,{priority:a.priority,estimatedMinutes:a.estimatedMinutes,sourceId:a.id})}>Add to Tasks</button></div></section>})}</div>}
+function ExamCards({items,allCourses,startItem,removeItem,togglePrep,addTask,today,Empty}){if(!items.length)return <Empty text="Exam нэмээгүй байна."/>;return <div className="grid gap-4 xl:grid-cols-2">{items.map(e=>{const course=allCourses.find(c=>c.id===e.course.id)||e.course,s=scoreStats(course),tasks=e.prepTasks||[],ready=tasks.length?Math.round(tasks.filter(t=>t.done).length/tasks.length*100):0,without=s.earned-(Number(e.earnedPoints)||0),required=Math.max(0,s.targetPoints-without),possible=Number(e.maxPoints)||0;return <section key={e.id} className="academic-card"><CardHead item={e} edit={()=>startItem("exam",e.course,e)} remove={()=>removeItem("exam",e.course.id,e.id)}/><p className="text-xs text-[#967683]">{e.date} {e.time} · {countdown(e.date,e.time,e.status==="Completed")}</p><div className="mt-3 rounded-xl bg-[#f8edf1] p-3 text-sm"><b>🎯 Required exam score</b><p>{s.targetReached?"Target reached ✓":required>possible?`⚠️ ${fmt(s.targetPercent)} оноонд хүрэх боломжгүй. Maximum ${fmt(s.maximum)}/${fmt(s.totalPossible)}`:`Target ${fmt(s.targetPercent)} хүрэхийн тулд ${fmt(required)}/${fmt(possible)} авах хэрэгтэй.`}</p></div>{tasks.length>0&&<><div className="mt-3 flex justify-between text-xs"><span>Exam readiness</span><b>{ready}% prepared</b></div><Bar value={ready}/><p className="mt-2 text-xs font-bold">{e.focus} · ~{e.minutes||60} min/day</p>{tasks.map(t=><label key={t.id} className="mt-2 flex gap-2 text-sm"><input className="check" type="checkbox" checked={t.done} onChange={()=>togglePrep(e.course.id,e.id,t.id)}/><span className={t.done?"line-through opacity-60":""}>{t.name}</span></label>)}<button className="btn btn-soft mt-3 text-xs" onClick={()=>{const t=tasks.find(x=>!x.done);if(t)addTask?.(`📚 ${e.course.name} — ${t.name}`,today,{estimatedMinutes:t.minutes,sourceId:e.id})}}>Add to Today's Plan</button></>}</section>})}</div>}
+function CardHead({item,edit,remove}){return <div className="flex justify-between gap-3"><div><small>{item.course.name} · {item.type}</small><h3>{item.name}</h3></div><div><button className="icon-btn" onClick={edit}><Edit3 size={15}/></button><button className="icon-btn" onClick={remove}><Trash2 size={15}/></button></div></div>}
