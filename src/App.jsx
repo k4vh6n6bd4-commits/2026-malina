@@ -259,9 +259,9 @@ function App(){
   const water=data.water[today]||0;
 
   function patch(p){setData(d=>({...d,...p}))}
-  function addTask(text,date=today){
+  function addTask(text,date=today,extra={}){
     if(!text.trim())return;
-    patch({tasks:[...data.tasks,{id:uid(),text:text.trim(),date,done:false}]});
+    patch({tasks:[...data.tasks,{id:uid(),text:text.trim(),date,done:false,...extra}]});
   }
   function toggleTask(id){patch({tasks:data.tasks.map(x=>x.id===id?{...x,done:!x.done}:x)})}
   function deleteTask(id){patch({tasks:data.tasks.filter(x=>x.id!==id)})}
@@ -304,6 +304,11 @@ function App(){
     if(!ev.title)return;
     patch({events:[...data.events,{id:uid(),...ev}]});
   }
+  function syncEducationEvent(ev){
+    const existing=data.events.find(x=>x.sourceId===ev.sourceId);
+    const value={title:ev.title,date:ev.date,time:ev.time||"",sourceId:ev.sourceId,source:"education",academicType:ev.type};
+    patch({events:existing?data.events.map(x=>x.id===existing.id?{...x,...value}:x):[...data.events,{id:uid(),...value}]});
+  }
   function editEvent(id){
     const x=data.events.find(e=>e.id===id); if(!x)return;
     const title=prompt("Event нэр",x.title); if(title===null)return;
@@ -343,7 +348,7 @@ function App(){
 
   const common={data, water, today, addTask,toggleTask,deleteTask,addHabit,toggleHabit,setWater,addExpense,editExpense,deleteExpense,updateFinance,addGoal,updateGoal,toggleGoal,deleteGoal,addGrocery,toggleGrocery,deleteGrocery,setMeal,addEvent,editEvent,deleteEvent,notify,date,setDate,exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud};
   function navigate(destination,prompt=""){setAssistantPrompt(prompt);setPage(destination);setMobileOpen(false)}
-  const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="water"?<Water {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
+  const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="water"?<Water {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify} addTask={addTask} syncEducationEvent={syncEducationEvent} today={today}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
 
   return <div className="min-h-screen text-[#382b31]">
    <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r border-[#eadde1] bg-[#fffaf9] p-4 pb-28 transition-transform lg:translate-x-0 ${mobileOpen?"translate-x-0":"-translate-x-full"}`}>

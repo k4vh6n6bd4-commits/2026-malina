@@ -41,6 +41,15 @@ button{cursor:pointer}
 .wellness-score:after{content:"";position:absolute;inset:9px;border-radius:50%;background:#81475b}
 .wellness-score div{position:relative;z-index:1;display:flex;align-items:baseline}.wellness-score b{font-size:28px}.wellness-score span{font-size:11px;opacity:.75}
 .wellness button:disabled{cursor:not-allowed;opacity:.5;transform:none}
+.education{min-width:0}.education-hero{display:grid;gap:24px;overflow:hidden;border-radius:28px;background:linear-gradient(125deg,#673348,#82475b 68%,#9b6675);padding:24px;color:#fff;box-shadow:0 20px 46px rgba(92,48,64,.16)}
+.education-hero .h-2{margin-top:10px;background:rgba(255,255,255,.18)}.education-hero .h-full{background:#f5dce5}
+.education-tabs{display:flex;gap:7px;overflow-x:auto;border:1px solid #eadde1;border-radius:18px;background:#fffaf9;padding:6px}.education-tabs button{display:flex;flex:1;min-width:max-content;align-items:center;justify-content:center;gap:7px;border-radius:13px;padding:10px 14px;color:#765663;font-size:13px;font-weight:800}.education-tabs .active{background:#7b3f55;color:#fff}
+.icon-btn{display:inline-grid;height:36px;width:36px;place-items:center;border-radius:11px;color:#8b596b}.icon-btn:hover{background:#f5e8ed}
+.academic-card{min-width:0;border:1px solid #eadde1;border-radius:22px;background:rgba(255,255,255,.92);padding:18px;box-shadow:0 10px 30px rgba(93,53,68,.06)}.academic-card h3{font-family:Georgia,serif;font-size:19px;font-weight:700;color:#563441}.academic-card small{display:block;color:#967683}
+.record-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:9px;border-radius:13px;background:#faf5f6;padding:9px 11px;font-size:12px}.record-row b,.record-row small{display:block}.record-row small{color:#967683}
+.deadline-row{display:flex;align-items:center;gap:11px;border-radius:15px;background:#faf5f6;padding:11px;font-size:12px}.deadline-row i{height:9px;width:9px;flex:0 0 auto;border-radius:50%}.deadline-row .urgent{background:#b85f6e}.deadline-row .soon{background:#c79a55}.deadline-row .later{background:#7e9b80}.deadline-row small{color:#967683}
+@media(min-width:768px){.education-hero{grid-template-columns:1.45fr .55fr;padding:32px}}
+@media(max-width:520px){.education{overflow:hidden}.education .card,.academic-card{border-radius:19px}.record-row{grid-template-columns:minmax(0,1fr) auto}.record-row button{display:none}.education .btn{min-height:42px}}
 @media(min-width:640px){.life-progress-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1024px){.life-progress-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.life-progress-item{flex-direction:column}}
 .life-hero{position:relative;isolation:isolate;display:grid;gap:28px;overflow:hidden;border-radius:30px;background:linear-gradient(125deg,#673348,#82475b 68%,#9b6675);padding:26px;color:white;box-shadow:0 22px 50px rgba(92,48,64,.18)}
