@@ -175,7 +175,18 @@ function App(){
     finally{syncingRef.current=false}
   }
 
-  useEffect(()=>{refreshAuth()},[]);
+  useEffect(()=>{
+  (async()=>{
+    try{
+      const user=await getUser();
+      setAuthUser(user?{id:user.id,email:user.email}:null);
+    }catch{
+      setAuthUser(null);
+    }finally{
+      setAuthLoading(false);
+    }
+  })();
+},[]);
 
   useEffect(()=>{
     if(!authUser){setSyncReady(false);setSyncStatus('Офлайн');return;}
