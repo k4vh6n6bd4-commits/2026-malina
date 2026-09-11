@@ -1,0 +1,12 @@
+{
+  "name": "Malina 2026 Master Planner",
+  "short_name": "Malina Planner",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f3f1",
+  "theme_color": "#7b3f55",
+  "description": "Personal all-in-one digital life planner.",
+  "icons": [
+    {"src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable"}
+  ]
+}
