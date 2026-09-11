@@ -175,9 +175,10 @@ function App(){
     finally{syncingRef.current=false}
   }
 
-  useEffect(()=>{
+ useEffect(()=>{
   (async()=>{
     try{
+      await handleAuthCallback();
       const user=await getUser();
       setAuthUser(user?{id:user.id,email:user.email}:null);
     }catch{
