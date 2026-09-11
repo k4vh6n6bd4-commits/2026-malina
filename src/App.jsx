@@ -346,7 +346,7 @@ function App(){
   const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="water"?<Water {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
 
   return <div className="min-h-screen text-[#382b31]">
-    <aside className={`fixed inset-y-0 left-0 z-40 w-64 overflow-y-auto border-r border-[#eadde1] bg-[#fffaf9] p-4 pb-28 transition-transform lg:translate-x-0 ${mobileOpen?"translate-x-0":"-translate-x-full"}`}>
+   <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r border-[#eadde1] bg-[#fffaf9] p-4 pb-28 transition-transform lg:translate-x-0 ${mobileOpen?"translate-x-0":"-translate-x-full"}`}>
       <div className="mb-7 flex items-center justify-between">
         <div><div className="serif text-2xl font-bold text-[#7b3f55]">Malina</div><div className="text-xs uppercase tracking-[.22em] text-[#a07d89]">2026 planner</div></div>
         <button className="lg:hidden" onClick={()=>setMobileOpen(false)}><X/></button>
