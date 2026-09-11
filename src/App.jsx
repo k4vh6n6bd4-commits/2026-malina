@@ -351,10 +351,10 @@ function App(){
         <div><div className="serif text-2xl font-bold text-[#7b3f55]">Malina</div><div className="text-xs uppercase tracking-[.22em] text-[#a07d89]">2026 planner</div></div>
         <button className="lg:hidden" onClick={()=>setMobileOpen(false)}><X/></button>
       </div>
-      <nav className="space-y-1">
+     <nav className="flex-1 space-y-1">
         {nav.map(([id,label,Icon])=><button key={id} onClick={()=>navigate(id)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold ${page===id?"bg-[#7b3f55] text-white":"text-[#765663] hover:bg-[#f5e8ed]"}`}><Icon size={19}/>{label}</button>)}
       </nav>
-      <div className="absolute bottom-5 left-4 right-4 rounded-2xl bg-[#f5e8ed] p-3 text-xs text-[#754052]"><b>💗 Your life, your system.</b><br/>Өдөр бүр бага багаар.</div>
+      <div className="mt-4 shrink-0 rounded-2xl bg-[#f5e8ed] p-3 text-xs text-[#754052]"><b>💗 Your life, your system.</b><br/>Өдөр бүр бага багаар.</div>
     </aside>
 
     <main className="lg:pl-64">
