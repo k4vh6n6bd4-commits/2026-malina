@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import Education from "./Education";
 import Assistant from "./Assistant";
-import SmartPlanner from "./SmartPlanner";
+import SmartPlanner from "./SmartPlanner.jsx";
 import Wellness from "./Wellness";
 import MyLife from "./MyLife";
 import {financeStats,goalStats} from "./smartFinance";
@@ -511,4 +511,3 @@ function SettingsPage({exportBackup,importBackup,resetAll,fileRef,authUser,authL
 }
 
 export default App;
-
