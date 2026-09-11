@@ -93,8 +93,56 @@ export default function Education({education,onChange,Card,SectionTitle,Empty,no
         <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><input className="field" value={semesterName} onChange={e=>setSemesterName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addSemester()} placeholder="Жишээ: 2026 Spring"/><button className="btn btn-soft" onClick={addSemester}><Plus size={18} className="inline"/> Semester</button></div>
         {active?<div className="mt-5">
           <div className="mb-3 flex items-center justify-between"><div><h3 className="font-extrabold">{active.name}</h3><div className="text-xs text-[#967683]">Semester GPA: {calculate(active.courses).gpa.toFixed(2)}</div></div><button onClick={()=>deleteSemester(active.id)} className="rounded-xl p-2 text-[#a35d6c] hover:bg-red-50" aria-label="Delete semester"><Trash2 size={17}/></button></div>
-          <div className="grid gap-2 md:grid-cols-[1fr_110px_110px_auto]"><input className="field" value={course.name} onChange={e=>setCourse({...course,name:e.target.value})} placeholder="Course name"/><input className="field" type="number" min="0.5" step="0.5" value={course.credits} onChange={e=>setCourse({...course,credits:e.target.value})} aria-label="Credits"/><select className="field" value={course.grade} onChange={e=>setCourse({...course,grade:e.target.value})} aria-label="Letter grade">{grades.map(g=><option key={g}>{g}</option>)}</select><button className="btn btn-primary" onClick={addCourse}><Plus size={18}/></button></div>
-          <div className="mt-4 space-y-2">{active.courses.length?active.courses.map(c=><div key={c.id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-3 rounded-2xl bg-[#fbf7f7] p-3"><div className="min-w-0 truncate font-semibold">{c.name}</div><span className="text-xs text-[#967683]">{c.credits} cr</span><b className="rounded-xl bg-[#f0e0e6] px-3 py-1 text-[#713a50]">{c.grade}</b><button onClick={()=>deleteCourse(c.id)} aria-label={`Delete ${c.name}`}><Trash2 size={16}/></button></div>):<Empty text="Энэ semester-т course нэмээгүй байна."/>}</div>
+         <div className="grid gap-2 md:grid-cols-[1fr_90px_100px_100px_100px_auto]">
+  <input
+    className="field"
+    value={course.name}
+    onChange={e=>setCourse({...course,name:e.target.value})}
+    placeholder="Хичээлийн нэр"
+  />
+
+  <input
+    className="field"
+    type="number"
+    min="0.5"
+    step="0.5"
+    value={course.credits}
+    onChange={e=>setCourse({...course,credits:e.target.value})}
+    placeholder="Credit"
+  />
+
+  <input
+    className="field"
+    type="number"
+    min="0"
+    max="100"
+    value={course.currentScore}
+    onChange={e=>setCourse({...course,currentScore:e.target.value})}
+    placeholder="Одоогийн"
+  />
+
+  <input
+    className="field"
+    type="number"
+    min="0"
+    max="100"
+    value={course.targetScore}
+    onChange={e=>setCourse({...course,targetScore:e.target.value})}
+    placeholder="Авах оноо"
+  />
+
+  <select
+    className="field"
+    value={course.grade}
+    onChange={e=>setCourse({...course,grade:e.target.value})}
+  >
+    {grades.map(g=><option key={g}>{g}</option>)}
+  </select>
+
+  <button className="btn btn-primary" onClick={addCourse}>
+    <Plus size={18}/>
+  </button>
+</div>
         </div>:<div className="mt-5"><Empty text="Эхний semester-ээ нэмээд GPA tracking эхлүүлээрэй."/></div>}
       </Card>
 
