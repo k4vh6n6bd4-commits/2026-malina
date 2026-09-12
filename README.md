@@ -14,7 +14,7 @@ npm run build
 npm run preview
 ```
 
-Planner data is stored locally and can sync across devices through Netlify Identity + Netlify Functions. Use Settings → Cloud Sync to choose “This device → Cloud” or “Cloud → this device”. Keep the JSON Backup as an extra safety copy.
+Planner data is stored locally and can sync across devices through Supabase Auth + Supabase Postgres. Use Settings → Cloud Sync to choose “This device → Cloud” or “Cloud → this device”. Keep the JSON Backup as an extra safety copy.
 
 ## Included
 - Dashboard / Today

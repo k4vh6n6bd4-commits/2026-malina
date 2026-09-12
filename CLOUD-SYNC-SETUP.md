@@ -1,17 +1,19 @@
-# Cloud Sync setup
+# Cloud Sync setup — Supabase
 
-## Important
-This app must run on **Netlify** for Cloud Sync to work because `/api/planner-sync` is a Netlify Function. GitHub Pages is only suitable for a static preview and will not provide the planner sync API.
+The planner uses **Supabase Auth + Postgres** for account-based cloud sync. Vercel hosts the Vite/React frontend.
 
-## First migration
-1. Open the planner on the device that has the correct data (for example, laptop).
-2. Settings → Cloud Sync → log in to the same Netlify Identity account.
-3. Tap **↑ Энэ төхөөрөмж → Cloud**.
-4. On the second device, log in to the same account.
-5. If the local device is empty, the app downloads the Cloud data automatically. You can also tap **↓ Cloud → энэ төхөөрөмж**.
+## First-time setup
+1. In Supabase, open **SQL Editor → New query**.
+2. Paste the contents of `supabase-schema.sql` and click **Run**.
+3. In Supabase, open **Authentication → Providers → Email** and keep Email enabled.
+4. The frontend uses `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY`.
 
-## Conflict safety
-If both devices already contain meaningful data, the app does not silently overwrite either copy. It shows two choices so you can explicitly select the source.
+## Account flow
+- Sign up with email and password.
+- Log in with the same account on any device.
+- RLS isolates each user’s planner data.
+- Planner changes auto-sync after a short delay.
+- Existing local data remains on the device until the user chooses to upload it.
 
-## GitHub Actions
-The included GitHub workflow is only a build check. Do not use GitHub Pages as the production deployment for this app.
+## Security
+Only the Supabase **publishable** key belongs in the frontend. Never put a `sb_secret_...` or service-role key in frontend code or environment variables exposed to the browser.
