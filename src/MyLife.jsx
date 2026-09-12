@@ -10,6 +10,7 @@ import {localDateKey} from "./dateUtils.js";
 const gradePoints={A:4,"A-":3.7,"B+":3.3,B:3,"B-":2.7,"C+":2.3,C:2,"C-":1.7,D:1,F:0};
 const money=n=>new Intl.NumberFormat("mn-MN").format(Number(n)||0)+" ₮";
 const clamp=n=>Math.max(0,Math.min(100,Math.round(n||0)));
+const timelineCategory={event:"Календарь",task:"Ажил",wellness:"Өөртөө анхаарах"};
 
 function gpaStats(education={}){
   const courses=(education.semesters||[]).flatMap(s=>s.courses||[]);
@@ -79,7 +80,7 @@ export default function MyLife({data,today,navigate,toggleTask,Card,SectionTitle
 
     <div className="grid gap-5 xl:grid-cols-[.82fr_1.18fr]">
       <Card className="priority-card"><SectionTitle icon={Sparkles} title="Today's priority" sub="Chosen from urgency, timing, priority and goal relevance"/><div className="priority-label">Focus first</div><h3 className="serif mt-3 text-3xl font-bold text-[#513540]">{action.title}</h3><p className="mt-3 text-sm leading-6 text-[#825f6c]">{action.reason}</p><button className="btn btn-primary mt-5 flex items-center gap-2" onClick={()=>navigate(plan.open.some(t=>t.text===action.title)?"tasks":"daily")}><span>Start this task</span><ArrowRight size={17}/></button></Card>
-      <Card><SectionTitle icon={Clock3} title="Today's timeline" sub="Calendar, tasks, planner recommendations, habits and meals"/>{plan.timeline.length?<div className="timeline-list">{plan.timeline.map((item,i)=><div className="timeline-row" key={item.id}><div className="timeline-time">{item.time}</div><div className={`timeline-dot timeline-${item.kind}`}/><div className="timeline-content"><b className="block truncate text-sm text-[#523843]">{item.title}</b><span className="text-xs capitalize text-[#a07d89]">{item.kind}{item.duration?` · ${item.duration} min`:""}</span></div>{i<plan.timeline.length-1&&<i className="timeline-line"/>}</div>)}</div>:<div className="soft-empty">No timed items yet. Add a task, event, habit, or meal to shape today.</div>}</Card>
+      <Card><SectionTitle icon={Clock3} title="Өнөөдрийн хуваарь" sub="Календарь, ажлууд, төлөвлөгөөний санал, дадал болон хоол"/>{plan.timeline.length?<div className="timeline-list">{plan.timeline.map((item,i)=><div className="timeline-row" key={item.id}><time className="timeline-time" dateTime={item.time}>{item.time}</time><div className={`timeline-dot timeline-${item.kind}`}/><div className="timeline-content"><b className="timeline-title">{item.title}</b><span className="timeline-meta">{timelineCategory[item.kind]||item.kind}{item.duration?` · ${item.duration} мин`:""}</span></div>{i<plan.timeline.length-1&&<i className="timeline-line"/>}</div>)}</div>:<div className="soft-empty">Одоогоор цагтай зүйл алга. Өнөөдрийн хуваариа бүрдүүлэхийн тулд ажил, үйл явдал, дадал эсвэл хоол нэмээрэй.</div>}</Card>
     </div>
 
     <Card><SectionTitle icon={Sparkles} title="Life progress" sub={`Overall ${overall}% · a practical planner summary, not a health or psychological score`}/><div className="life-bars">{categories.map(([label,pct,Icon])=><div key={label} className="life-bar"><div className="flex items-center gap-2"><Icon size={16}/><b>{label}</b><span>{clamp(pct)}%</span></div><div><i style={{width:`${clamp(pct)}%`}}/></div></div>)}</div></Card>

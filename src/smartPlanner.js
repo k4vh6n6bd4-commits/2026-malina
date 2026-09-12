@@ -34,11 +34,11 @@ export function dayPlan(data,date=new Date()){
   const completion=total?Math.round(completed/total*100):0;
   const fixed=events.map(e=>({id:`e-${e.id}`,kind:"event",title:e.title,start:minutes(e.time||e.title),duration:duration(e)}));
   const wellness=[
-    {id:"w-breakfast",kind:"wellness",wellnessType:"meal",title:meal.breakfast?`Breakfast — ${meal.breakfast}`:"Breakfast",start:8*60,duration:30},
-    {id:"w-water",kind:"wellness",wellnessType:"water",title:"Drink water",start:11*60,duration:5},
-    {id:"w-lunch",kind:"wellness",wellnessType:"meal",title:meal.lunch?`Lunch — ${meal.lunch}`:"Lunch",start:13*60,duration:30},
-    {id:"w-habits",kind:"wellness",wellnessType:"habit",title:"Habit check",start:17*60,duration:10},
-    {id:"w-dinner",kind:"wellness",wellnessType:"meal",title:meal.dinner?`Dinner — ${meal.dinner}`:"Dinner",start:19*60,duration:30}
+    {id:"w-breakfast",kind:"wellness",wellnessType:"meal",title:meal.breakfast?`🍳 Өглөөний цай — ${meal.breakfast}`:"🍳 Өглөөний цай",start:8*60,duration:30},
+    {id:"w-water",kind:"wellness",wellnessType:"water",title:"💧 Ус уух",start:11*60,duration:5},
+    {id:"w-lunch",kind:"wellness",wellnessType:"meal",title:meal.lunch?`🍽️ Өдрийн хоол — ${meal.lunch}`:"🍽️ Өдрийн хоол",start:13*60,duration:30},
+    {id:"w-habits",kind:"wellness",wellnessType:"habit",title:"✓ Дадлаа шалгах",start:17*60,duration:10},
+    {id:"w-dinner",kind:"wellness",wellnessType:"meal",title:meal.dinner?`🍽️ Оройн хоол — ${meal.dinner}`:"🍽️ Оройн хоол",start:19*60,duration:30}
   ];
   let cursor=9*60;
   const timeline=[...fixed.filter(x=>x.start!==null),...wellness,...tasks.map(t=>{
