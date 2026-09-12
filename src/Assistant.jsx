@@ -162,18 +162,27 @@ const actionChips=[
 export default function Assistant({data,setData,Card,SectionTitle,initialPrompt=""}){
   const [messages,setMessages]=useState(()=>[{id:"welcome",role:"assistant",text:"Сайн уу! Би таны planner дээрх бодит мэдээлэлд тулгуурлан өдөр төлөвлөх, ахиц дүгнэх, санхүү болон GPA тооцоход тусална. Юунаас эхлэх вэ?"},...(initialPrompt?[{id:"initial-user",role:"user",text:initialPrompt},{id:"initial-answer",role:"assistant",text:buildResponse(initialPrompt,data)}]:[])]);
   const [value,setValue]=useState("");
+  const [pending,setPending]=useState(null);
   const endRef=useRef(null);
   const suggestions=useMemo(()=>prompts,[]);
   function ask(text){
     const query=text.trim(); if(!query)return;
+    if(pending&&/^(тийм|зөвшөөр|батал|yes)$/i.test(query)){confirmPending();setValue("");return}
+    if(pending&&/^(үгүй|цуцал|болих|no)$/i.test(query)){setPending(null);setMessages(current=>[...current,{id:`u-${Date.now()}`,role:"user",text:query},{id:`a-${Date.now()}`,role:"assistant",text:"Үйлдлийг цуцаллаа. Мэдээлэл өөрчлөгдөөгүй."}]);setValue("");return}
     const result=executeAssistantCommand(data,query);
     const education=educationAnswer(data,query);
     let response;
-    if(result.actions.length){setData(current=>executeAssistantCommand(current,query).data);response=`Боллоо ✨\n${result.actions.map(x=>`• ${x}`).join("\n")}${result.question?`\n\n${result.question}`:""}`}
+    if(result.actions.length){setPending({query,actions:result.actions});response=`Дараах өөрчлөлтийг хийх үү?\n\n${result.actions.map(x=>`• ${x}`).join("\n")}\n\nБаталсны дараа л мэдээлэл өөрчлөгдөнө.`}
     else response=result.question||education||buildResponse(query,data);
     setMessages(current=>[...current,{id:`u-${Date.now()}`,role:"user",text:query},{id:`a-${Date.now()}`,role:"assistant",text:response}]);
     setValue("");
     requestAnimationFrame(()=>endRef.current?.scrollIntoView({behavior:"smooth",block:"nearest"}));
+  }
+  function confirmPending(){
+    if(!pending)return;const result=executeAssistantCommand(data,pending.query);
+    if(!result.actions.length){setMessages(current=>[...current,{id:`a-${Date.now()}`,role:"assistant",text:"Өөрчлөх мэдээлэл олдсонгүй. Planner өөрчлөгдөөгүй."}]);setPending(null);return}
+    setData(current=>executeAssistantCommand(current,pending.query).data);
+    setMessages(current=>[...current,{id:`a-${Date.now()}`,role:"assistant",text:`Өөрчлөлт хадгалагдлаа.\n${result.actions.map(x=>`• ${x}`).join("\n")}`}]);setPending(null);
   }
   return <div className="space-y-5">
     <div className="assistant-hero overflow-hidden rounded-[28px] bg-[#7b3f55] p-6 text-white shadow-xl md:p-8">
@@ -186,6 +195,7 @@ export default function Assistant({data,setData,Card,SectionTitle,initialPrompt=
           {messages.map(message=><div key={message.id} className={`flex ${message.role==="user"?"justify-end":"justify-start"}`}><div className={`max-w-[88%] whitespace-pre-line rounded-3xl px-4 py-3 text-sm leading-6 md:max-w-[76%] ${message.role==="user"?"rounded-br-lg bg-[#7b3f55] text-white":"rounded-bl-lg border border-[#eadde1] bg-[#fbf7f7] text-[#553b45]"}`}>{message.text}</div></div>)}
           <div ref={endRef}/>
         </div>
+        {pending&&<div className="confirmation-bar" role="alert"><span>Энэ өөрчлөлтийг батлах уу?</span><button className="btn btn-primary" type="button" onClick={confirmPending}>Тийм, өөрчил</button><button className="btn btn-ghost" type="button" onClick={()=>setPending(null)}>Цуцлах</button></div>}
         <div className="border-t border-[#eadde1] bg-[#fffdfc] p-3 md:p-4"><div className="mb-3 flex gap-2 overflow-x-auto pb-1">{actionChips.map(([label,prompt,Icon])=><button key={label} type="button" onClick={()=>{setValue(prompt)}} className="flex shrink-0 items-center gap-1.5 rounded-full border border-[#e7d7dc] bg-white px-3 py-1.5 text-xs font-extrabold text-[#713a50] transition hover:bg-[#f5e8ed]"><Icon size={14}/>{label}</button>)}</div><form onSubmit={e=>{e.preventDefault();ask(value)}} className="flex items-end gap-2"><textarea rows="1" className="field min-h-11 resize-none" value={value} onChange={e=>setValue(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();ask(value)}}} placeholder="Команд эсвэл асуултаа бичээрэй..." aria-label="Assistant-д команд бичих"/><button className="btn btn-primary flex h-11 w-11 shrink-0 items-center justify-center !p-0" aria-label="Илгээх"><Send size={18}/></button></form></div>
       </Card>
       <div className="space-y-5">

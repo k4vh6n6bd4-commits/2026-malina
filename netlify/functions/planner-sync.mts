@@ -8,6 +8,7 @@ type TableName = typeof tableNames[number];
 const emptyPlanner = () => ({
   tasks: [], habits: [], finance: { income: 0, savings: 0, expenses: [] }, water: {}, meals: {},
   groceries: [], goals: [], events: [], aiActions: [], education: { targetGpa: 3.8, futureCredits: 15, semesters: [] },
+  dailyReviews: {},
 });
 
 function rowsFromPlanner(data: any): Record<TableName, { id: string; data: any }[]> {
@@ -49,6 +50,7 @@ function plannerFromRows(profile: any, rows: Record<string, any[]>) {
   data.education = { ...(profile?.settings?.education || {}), semesters: values("semesters").map((semester: any) => ({
     ...semester, courses: courses.filter((course: any) => course.semesterId === semester.id).map(({ semesterId: _id, ...course }: any) => course),
   })) };
+  data.dailyReviews = profile?.settings?.dailyReviews && typeof profile.settings.dailyReviews === "object" ? profile.settings.dailyReviews : {};
   return data;
 }
 
@@ -83,7 +85,11 @@ export default async (request: Request) => {
         return Response.json({ error: "Өөр төхөөрөмж дээр шинэ мэдээлэл байна.", conflict: true, updatedAt: profile.updated_at }, { status: 409 });
       }
       const now = new Date();
-      const settings = { finance: { ...(body.data.finance || {}), expenses: undefined }, education: { ...(body.data.education || {}), semesters: undefined } };
+      const settings = {
+        finance: { ...(body.data.finance || {}), expenses: undefined },
+        education: { ...(body.data.education || {}), semesters: undefined },
+        dailyReviews: body.data.dailyReviews && typeof body.data.dailyReviews === "object" ? body.data.dailyReviews : {},
+      };
       await client.query(`INSERT INTO profiles (user_id,email,settings,updated_at) VALUES ($1,$2,$3,$4)
         ON CONFLICT (user_id) DO UPDATE SET email=EXCLUDED.email, settings=EXCLUDED.settings, updated_at=EXCLUDED.updated_at`,
         [user.id, user.email || "", JSON.stringify(settings), now]);

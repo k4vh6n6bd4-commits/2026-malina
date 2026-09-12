@@ -24,12 +24,15 @@ export function dayPlan(data,date=new Date()){
   const events=(data.events||[]).filter(e=>e.date===day);
   const habits=(data.habits||[]).filter(h=>h.active);
   const open=tasks.filter(t=>!t.done), done=tasks.filter(t=>t.done);
-  const habitDone=habits.filter(h=>h.log?.[day]).length, water=Number(data.water?.[day]||0);
+  const habitDone=habits.filter(h=>h.log?.[day]).length, water=Math.max(0,Number(data.water?.[day]||0));
+  const meal=(data.meals?.[day]&&typeof data.meals[day]==="object")?data.meals[day]:{};
+  const mealDone=["breakfast","lunch","snack","dinner"].filter(type=>String(meal[type]||"").trim()).length;
+  const taskPct=tasks.length?Math.round(done.length/tasks.length*100):0,habitPct=habits.length?Math.round(habitDone/habits.length*100):0;
+  const waterPct=Math.min(100,Math.round(water/8*100)),mealPct=Math.round(mealDone/4*100);
   const total=tasks.length+habits.length+1;
   const completed=done.length+habitDone+Math.min(1,water/8);
   const completion=total?Math.round(completed/total*100):0;
   const fixed=events.map(e=>({id:`e-${e.id}`,kind:"event",title:e.title,start:minutes(e.time||e.title),duration:duration(e)}));
-  const meal=data.meals?.[day]||{};
   const wellness=[
     {id:"w-breakfast",kind:"wellness",wellnessType:"meal",title:meal.breakfast?`Breakfast — ${meal.breakfast}`:"Breakfast",start:8*60,duration:30},
     {id:"w-water",kind:"wellness",wellnessType:"water",title:"Drink water",start:11*60,duration:5},
@@ -38,13 +41,13 @@ export function dayPlan(data,date=new Date()){
     {id:"w-dinner",kind:"wellness",wellnessType:"meal",title:meal.dinner?`Dinner — ${meal.dinner}`:"Dinner",start:19*60,duration:30}
   ];
   let cursor=9*60;
-  const timeline=[...fixed.filter(x=>x.start!==null),...wellness,...open.map(t=>{
+  const timeline=[...fixed.filter(x=>x.start!==null),...wellness,...tasks.map(t=>{
     const explicit=minutes(t.time||t.text), len=duration(t);
-    if(explicit!==null)return{id:`t-${t.id}`,kind:"task",title:t.text,start:explicit,duration:len,priority:t.smartPriority.level};
+    if(explicit!==null)return{id:`t-${t.id}`,sourceId:t.id,kind:"task",title:t.text,start:explicit,duration:len,priority:t.smartPriority.level,taskTime:t.time||"",done:!!t.done};
     while(fixed.some(e=>e.start!==null&&cursor<e.start+e.duration&&cursor+len>e.start))cursor+=30;
-    const block={id:`t-${t.id}`,kind:"task",title:t.text,start:cursor,duration:len,priority:t.smartPriority.level};cursor+=len+15;return block;
+    const block={id:`t-${t.id}`,sourceId:t.id,kind:"task",title:t.text,start:cursor,duration:len,priority:t.smartPriority.level,taskTime:t.time||"",done:!!t.done};cursor+=len+15;return block;
   }),...fixed.filter(x=>x.start===null).map((e,i)=>({...e,start:12*60+i*90}))].sort((a,b)=>a.start-b.start);
-  return {day,date,tomorrow,tasks,open,done,events,habits,habitDone,water,completion,timeline:timeline.map(x=>({...x,time:clock(x.start)})),goals:(data.goals||[]).filter(g=>!g.done)};
+  return {day,date,tomorrow,tasks,open,done,events,habits,habitDone,water,meal,meals:meal,mealDone,taskPct,habitPct,waterPct,mealPct,completion,timeline:timeline.map(x=>({...x,time:clock(x.start)})),goals:(data.goals||[]).filter(g=>!g.done)};
 }
 
 export function nextAction(data,now=new Date()){
