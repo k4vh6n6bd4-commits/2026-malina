@@ -33,7 +33,8 @@ const defaultData={
   goals:[],
   events:[],
   aiActions:[],
-  education:{targetGpa:3.8,futureCredits:15,semesters:[]}
+  education:{targetGpa:3.8,futureCredits:15,semesters:[]},
+  dailyReviews:{}
 };
 
 function load(){
@@ -348,7 +349,7 @@ function App(){
 
   const common={data, water, today, addTask,toggleTask,deleteTask,addHabit,toggleHabit,setWater,addExpense,editExpense,deleteExpense,updateFinance,addGoal,updateGoal,toggleGoal,deleteGoal,addGrocery,toggleGrocery,deleteGrocery,setMeal,addEvent,editEvent,deleteEvent,notify,date,setDate,exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud};
   function navigate(destination,prompt=""){setAssistantPrompt(prompt);setPage(destination);setMobileOpen(false)}
-  const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="water"?<Water {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify} addTask={addTask} syncEducationEvent={syncEducationEvent} today={today}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
+  const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} setData={setData} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="water"?<Water {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify} addTask={addTask} syncEducationEvent={syncEducationEvent} today={today}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
 
   return <div className="min-h-screen text-[#382b31]">
    <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r border-[#eadde1] bg-[#fffaf9] p-4 pb-28 transition-transform lg:translate-x-0 ${mobileOpen?"translate-x-0":"-translate-x-full"}`}>
