@@ -68,7 +68,7 @@ const nav=[
 ];
 
 function Card({children,className=""}){return <section className={`card p-4 md:p-5 ${className}`}>{children}</section>}
-function SectionTitle({icon:Icon,title,sub}){return <div className="mb-4 flex items-start gap-3"><div className="rounded-2xl bg-[#f5e8ed] p-2 text-[#7b3f55]"><Icon size={20}/></div><div><h2 className="text-lg font-extrabold text-[#4a313b]">{title}</h2>{sub&&<p className="text-sm text-[#94727e]">{sub}</p>}</div></div>}
+function SectionTitle({icon:Icon,title,sub}){return <div className="section-title mb-4 flex min-w-0 items-start gap-3"><div className="shrink-0 rounded-2xl bg-[#f5e8ed] p-2 text-[#7b3f55]"><Icon size={20}/></div><div className="min-w-0 flex-1"><h2 className="max-w-full whitespace-normal break-words text-lg font-extrabold text-[#4a313b]">{title}</h2>{sub&&<p className="max-w-full whitespace-normal break-words text-sm text-[#94727e]">{sub}</p>}</div></div>}
 function Empty({text}){return <div className="rounded-2xl bg-[#faf5f6] p-5 text-center text-sm text-[#9b7d87]">{text}</div>}
 
 function App(){
