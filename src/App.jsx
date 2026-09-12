@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { getUser, handleAuthCallback, login as identityLogin, logout as identityLogout, signup as identitySignup } from "@netlify/identity";
 import {
-  CalendarDays, Check, ChevronLeft, ChevronRight, CircleDollarSign, ClipboardList,
+  CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, ClipboardList,
   Droplets, Edit3, Home, ListChecks, Menu, Plus, RotateCcw, Settings, Target,
   Trash2, Utensils, WalletCards, X, Download, Upload, Sparkles, Bot, HeartPulse
 } from "lucide-react";
@@ -15,31 +15,15 @@ import Wellness from "./Wellness";
 import MyLife from "./MyLife";
 import {financeStats,goalStats} from "./smartFinance";
 import {localDateKey} from "./dateUtils.js";
+import {defaultPlannerData as defaultData,normalizePlannerData} from "./dataUtils.js";
+import {suggestionFor} from "./mealSuggestions.js";
+import {makeGoalPlan} from "./goalPlanner.js";
 
 const KEY="malina-planner-v1";
 
-const defaultData={
-  tasks:[],
-  habits:[
-    {id:"h1",name:"Ус 2L",active:true,log:{}},
-    {id:"h2",name:"20 мин унших",active:true,log:{}},
-    {id:"h3",name:"Workout / алхалт",active:true,log:{}},
-    {id:"h4",name:"Арьс арчилгаа",active:true,log:{}}
-  ],
-  finance:{income:0,savings:0,expenses:[]},
-  water:{},
-  meals:{},
-  groceries:[],
-  goals:[],
-  events:[],
-  aiActions:[],
-  education:{targetGpa:3.8,futureCredits:15,semesters:[]},
-  dailyReviews:{}
-};
-
 function load(){
-  try{return {...defaultData,...JSON.parse(localStorage.getItem(KEY)||"{}")};}
-  catch{return defaultData}
+  try{const saved=localStorage.getItem(KEY);return normalizePlannerData(saved?JSON.parse(saved):{}, {withStarterHabits:!saved});}
+  catch{return normalizePlannerData({}, {withStarterHabits:true})}
 }
 function uid(){return crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`}
 function todayKey(d=new Date()){return localDateKey(d)}
@@ -54,20 +38,33 @@ function usePersisted(){
   return [data,setData];
 }
 
+class PageErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={error:false}}
+  static getDerivedStateFromError(){return{error:true}}
+  componentDidCatch(error,info){console.error("Malina page error",error,info)}
+  componentDidUpdate(previous){if(previous.page!==this.props.page&&this.state.error)this.setState({error:false})}
+  render(){return this.state.error?<section className="card error-recovery" role="alert"><h2 className="serif text-2xl font-bold">Энэ хэсгийг нээж чадсангүй</h2><p>Таны хадгалсан мэдээлэл хэвээрээ байна. Өөр хэсэг рүү орж, дахин нээнэ үү.</p><button className="btn btn-primary" onClick={()=>this.setState({error:false})}>Дахин оролдох</button></section>:this.props.children}
+}
+export class AppErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={error:false}}
+  static getDerivedStateFromError(){return{error:true}}
+  componentDidCatch(error,info){console.error("Malina application error",error,info)}
+  render(){return this.state.error?<main className="min-h-screen p-5"><section className="card error-recovery" role="alert"><h1 className="serif text-2xl font-bold">Malina-г аюулгүй сэргээе</h1><p>Таны мэдээлэл устгагдаагүй. Хуудсыг дахин ачаалахад хадгалсан хувилбар нээгдэнэ.</p><button className="btn btn-primary" onClick={()=>location.reload()}>Дахин ачаалах</button></section></main>:this.props.children}
+}
+
 const nav=[
-  ["dashboard","My Life",Home],
-  ["daily","Today's Plan",CalendarDays],
-  ["wellness","Wellness",HeartPulse],
-  ["tasks","Tasks",ListChecks],
-  ["habits","Habits",Check],
-  ["finance","Money",WalletCards],
-  ["water","Water",Droplets],
-  ["meals","Meals",Utensils],
-  ["calendar","Calendar",CalendarDays],
-  ["goals","Goals",Target],
-  ["education","Education",Sparkles],
-  ["assistant","AI Assistant",Bot],
-  ["settings","Settings",Settings]
+  ["dashboard","Миний амьдрал",Home],
+  ["daily","Өнөөдрийн төлөвлөгөө",CalendarDays],
+  ["wellness","Өөртөө анхаарах",HeartPulse],
+  ["tasks","Ажлууд",ListChecks],
+  ["habits","Дадал",Check],
+  ["finance","Санхүү",WalletCards],
+  ["meals","Хоол",Utensils],
+  ["calendar","Календарь",CalendarDays],
+  ["goals","Зорилго",Target],
+  ["education","Боловсрол",Sparkles],
+  ["assistant","AI туслах",Bot],
+  ["settings","Тохиргоо",Settings]
 ];
 
 function Card({children,className=""}){return <section className={`card p-4 md:p-5 ${className}`}>{children}</section>}
@@ -97,7 +94,7 @@ function App(){
       Object.keys(d.finance?.monthlySavings||{}).length>0 || Object.keys(d.water||{}).length>0 ||
       Object.keys(d.meals||{}).length>0 || (d.groceries||[]).length>0 || (d.goals||[]).length>0 ||
       (d.events||[]).length>0 || (d.aiActions||[]).length>0 ||
-      (d.education?.semesters||[]).some(s=>(s.courses||[]).length>0);
+      Object.keys(d.dailyReviews||{}).length>0 || (d.education?.semesters||[]).some(s=>(s.courses||[]).length>0);
   },[data]);
 
   function dataCounts(d){
@@ -165,7 +162,7 @@ function App(){
         setSyncStatus('2 төхөөрөмжийн мэдээлэл зөрж байна');
         return false;
       }
-      setData({...defaultData,...result.data});
+      setData(normalizePlannerData(result.data));
       syncBaseRef.current=result.updatedAt||'';
       localStorage.setItem('malina-planner-cloud-updated-at',syncBaseRef.current);
       setSyncConflict(null);
@@ -204,7 +201,7 @@ function App(){
             setSyncStatus(`Сонголт хэрэгтэй · Cloud: ${countsLabel(result.data)}`);
             return;
           }
-          setData(current=>({...defaultData,...result.data}));
+          setData(normalizePlannerData(result.data));
           if(result.updatedAt)localStorage.setItem('malina-planner-cloud-updated-at',result.updatedAt);
           setSyncReady(true);
           setSyncStatus(`Cloud-оос сэргээгдлээ · ${countsLabel(result.data)}`);
@@ -254,16 +251,18 @@ function App(){
   const notify=m=>setToast(m);
 
   const today=todayKey();
-  const todayTasks=data.tasks.filter(x=>(x.date||today)===today);
+  const todayTasks=(data.tasks||[]).filter(x=>(x.date||today)===today);
   const done=todayTasks.filter(x=>x.done).length;
   const progress=todayTasks.length?Math.round(done/todayTasks.length*100):0;
-  const water=data.water[today]||0;
+  const water=Number(data.water?.[today]||0);
 
   function patch(p){setData(d=>({...d,...p}))}
   function addTask(text,date=today,extra={}){
     if(!text.trim())return;
+    if(extra.sourceId&&data.tasks.some(task=>task.sourceId===extra.sourceId)){notify("Энэ алхам Tasks-д аль хэдийн байна");return;}
     patch({tasks:[...data.tasks,{id:uid(),text:text.trim(),date,done:false,...extra}]});
   }
+  function updateTask(id,values){patch({tasks:data.tasks.map(task=>task.id===id?{...task,...values}:task)})}
   function toggleTask(id){patch({tasks:data.tasks.map(x=>x.id===id?{...x,done:!x.done}:x)})}
   function deleteTask(id){patch({tasks:data.tasks.filter(x=>x.id!==id)})}
   function toggleHabit(id){
@@ -305,6 +304,7 @@ function App(){
     if(!ev.title)return;
     patch({events:[...data.events,{id:uid(),...ev}]});
   }
+  function updateEvent(id,values){patch({events:data.events.map(event=>event.id===id?{...event,...values}:event)})}
   function syncEducationEvent(ev){
     const existing=data.events.find(x=>x.sourceId===ev.sourceId);
     const value={title:ev.title,date:ev.date,time:ev.time||"",sourceId:ev.sourceId,source:"education",academicType:ev.type};
@@ -334,8 +334,8 @@ function App(){
       try{
         const x=JSON.parse(r.result);
         const incoming=x.data||x;
-        if(!incoming.tasks||!incoming.finance||!incoming.habits)throw Error();
-        setData({...defaultData,...incoming});
+        if(!incoming||typeof incoming!=="object"||Array.isArray(incoming))throw Error();
+        setData(normalizePlannerData(incoming));
         notify("Backup амжилттай сэргээгдлээ");
       }catch{notify("Backup файл буруу байна")}
     };
@@ -343,13 +343,13 @@ function App(){
   }
   function resetAll(){
     if(confirm("Бүх planner мэдээллийг устгах уу? Энэ үйлдлийг буцаах боломжгүй.")){
-      setData(defaultData);notify("Бүх мэдээлэл цэвэрлэгдлээ");
+      setData(normalizePlannerData({}, {withStarterHabits:true}));notify("Бүх мэдээлэл цэвэрлэгдлээ");
     }
   }
 
-  const common={data, water, today, addTask,toggleTask,deleteTask,addHabit,toggleHabit,setWater,addExpense,editExpense,deleteExpense,updateFinance,addGoal,updateGoal,toggleGoal,deleteGoal,addGrocery,toggleGrocery,deleteGrocery,setMeal,addEvent,editEvent,deleteEvent,notify,date,setDate,exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud};
+  const common={data, water, today, addTask,updateTask,toggleTask,deleteTask,addHabit,toggleHabit,setWater,addExpense,editExpense,deleteExpense,updateFinance,addGoal,updateGoal,toggleGoal,deleteGoal,addGrocery,toggleGrocery,deleteGrocery,setMeal,addEvent,updateEvent,editEvent,deleteEvent,notify,date,setDate,exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud};
   function navigate(destination,prompt=""){setAssistantPrompt(prompt);setPage(destination);setMobileOpen(false)}
-  const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} setData={setData} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="water"?<Water {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify} addTask={addTask} syncEducationEvent={syncEducationEvent} today={today}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
+  const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} setData={setData} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask} updateTask={updateTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify} addTask={addTask} syncEducationEvent={syncEducationEvent} today={today}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
 
   return <div className="min-h-screen text-[#382b31]">
    <aside className={`fixed inset-y-0 left-0 z-40 flex w-64 flex-col overflow-y-auto border-r border-[#eadde1] bg-[#fffaf9] p-4 pb-28 transition-transform lg:translate-x-0 ${mobileOpen?"translate-x-0":"-translate-x-full"}`}>
@@ -360,18 +360,18 @@ function App(){
      <nav className="flex-1 space-y-1">
         {nav.map(([id,label,Icon])=><button key={id} onClick={()=>navigate(id)} className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm font-bold ${page===id?"bg-[#7b3f55] text-white":"text-[#765663] hover:bg-[#f5e8ed]"}`}><Icon size={19}/>{label}</button>)}
       </nav>
-      <div className="mt-4 shrink-0 rounded-2xl bg-[#f5e8ed] p-3 text-xs text-[#754052]"><b>💗 Your life, your system.</b><br/>Өдөр бүр бага багаар.</div>
+      <div className="mt-4 shrink-0 rounded-2xl bg-[#f5e8ed] p-3 text-xs text-[#754052]"><b>Таны амьдрал, таны хэмнэл.</b><br/>Өдөр бүр бага багаар.</div>
     </aside>
 
     <main className="lg:pl-64">
       <header className="sticky top-0 z-30 border-b border-[#eadde1] bg-[#fffaf9]/90 px-4 py-3 backdrop-blur md:px-7">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-3"><button className="lg:hidden" onClick={()=>setMobileOpen(true)}><Menu/></button><div><div className="text-xs font-bold uppercase tracking-widest text-[#a07d89]">Today</div><h1 className="serif text-xl font-bold text-[#513540]">{new Intl.DateTimeFormat("mn-MN",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</h1></div></div>
+          <div className="flex items-center gap-3"><button className="lg:hidden" aria-label="Цэс нээх" onClick={()=>setMobileOpen(true)}><Menu/></button><div><div className="text-xs font-bold uppercase tracking-widest text-[#a07d89]">Өнөөдөр</div><h1 className="serif text-xl font-bold text-[#513540]">{new Intl.DateTimeFormat("mn-MN",{weekday:"long",day:"numeric",month:"long"}).format(new Date())}</h1></div></div>
           <div className="flex items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-bold shadow-sm">✨ {progress}%</div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl p-4 pb-24 md:p-7">{Page}</div>
+      <div className="mx-auto max-w-7xl p-4 pb-28 md:p-7"><PageErrorBoundary page={page}>{Page}</PageErrorBoundary></div>
 
       <nav className="fixed bottom-0 left-0 right-0 z-30 grid grid-cols-5 border-t border-[#eadde1] bg-[#fffaf9]/95 p-2 backdrop-blur lg:hidden">
         {nav.slice(0,5).map(([id,label,Icon])=><button key={id} onClick={()=>navigate(id)} className={`flex flex-col items-center gap-1 rounded-xl py-1 text-[10px] font-bold ${page===id?"text-[#7b3f55]":"text-[#9a7d87]"}`}><Icon size={19}/>{label}</button>)}
@@ -410,12 +410,12 @@ function GoalMini({data,addGoal,toggleGoal,deleteGoal}){
   return <><div className="flex gap-2"><input className="field" value={v} onChange={e=>setV(e.target.value)} placeholder="Жишээ: 7 хоногт 3 удаа workout"/><button className="btn btn-primary" onClick={()=>{addGoal(v);setV("")}}><Plus size={18}/></button></div><div className="mt-3 space-y-2">{data.goals.slice(0,5).map(g=><div key={g.id} className="flex items-center gap-3 rounded-2xl bg-[#fbf7f7] p-3"><input className="check" type="checkbox" checked={g.done} onChange={()=>toggleGoal(g.id)}/><span className={`flex-1 text-sm ${g.done?"line-through text-[#a88e97]":""}`}>{g.text}</span><button onClick={()=>deleteGoal(g.id)}><Trash2 size={16}/></button></div>)}</div></>
 }
 
-function Tasks({data,today,addTask,toggleTask,deleteTask}){
-  const [v,setV]=useState(""); const [d,setD]=useState(today);
+function Tasks({data,today,addTask,updateTask,toggleTask,deleteTask}){
+  const [v,setV]=useState(""); const [d,setD]=useState(today);const [time,setTime]=useState("");
   const [filter,setFilter]=useState("all");
   const list=data.tasks.filter(x=>filter==="all"||filter==="done"&&x.done||filter==="open"&&!x.done).sort((a,b)=>a.date.localeCompare(b.date));
-  return <div className="space-y-5"><Card><SectionTitle icon={ClipboardList} title="Tasks" sub="CRUD + өдөр сонгох"/><div className="grid gap-2 md:grid-cols-[1fr_170px_auto]"><input className="field" value={v} onChange={e=>setV(e.target.value)} placeholder="Шинэ task..."/><input className="field" type="date" value={d} onChange={e=>setD(e.target.value)}/><button className="btn btn-primary" onClick={()=>{addTask(v,d);setV("")}}><Plus size={18}/></button></div></Card>
-    <Card><div className="mb-4 flex gap-2">{["all","open","done"].map(f=><button key={f} onClick={()=>setFilter(f)} className={`btn ${filter===f?"btn-primary":"btn-soft"}`}>{f==="all"?"Бүгд":f==="open"?"Хийх":"Дууссан"}</button>)}</div>{list.length?<div className="space-y-2">{list.map(t=><div key={t.id} className="flex items-center gap-3 rounded-2xl border border-[#eee3e6] p-3"><input className="check" type="checkbox" checked={t.done} onChange={()=>toggleTask(t.id)}/><div className="flex-1"><div className={`font-semibold ${t.done?"line-through text-[#a88e97]":""}`}>{t.text}</div><div className="text-xs text-[#a1858f]">{t.date}</div></div><button onClick={()=>deleteTask(t.id)}><Trash2 size={17}/></button></div>)}</div>:<Empty text="Task алга байна."/>}</Card></div>
+  return <div className="space-y-5"><Card><SectionTitle icon={ClipboardList} title="Ажлууд" sub="Огноо, цагтай ажлаа төлөвлөх"/><div className="grid gap-2 md:grid-cols-[1fr_160px_130px_auto]"><input className="field" value={v} onChange={e=>setV(e.target.value)} placeholder="Шинэ ажил..."/><input className="field" type="date" value={d} onChange={e=>setD(e.target.value)}/><input className="field time-field" aria-label="Ажлын цаг" type="time" value={time} onChange={e=>setTime(e.target.value)}/><button className="btn btn-primary" onClick={()=>{addTask(v,d,{time});setV("");setTime("")}}><Plus size={18}/></button></div></Card>
+    <Card><div className="mb-4 flex gap-2">{["all","open","done"].map(f=><button key={f} onClick={()=>setFilter(f)} className={`btn ${filter===f?"btn-primary":"btn-soft"}`}>{f==="all"?"Бүгд":f==="open"?"Хийх":"Дууссан"}</button>)}</div>{list.length?<div className="space-y-2">{list.map(t=><div key={t.id} className="flex flex-wrap items-center gap-3 rounded-2xl border border-[#eee3e6] p-3"><input className="check" type="checkbox" checked={!!t.done} onChange={()=>toggleTask(t.id)}/><div className="min-w-0 flex-1"><div className={`font-semibold ${t.done?"line-through text-[#a88e97]":""}`}>{t.text}</div><div className="text-xs text-[#a1858f]">{t.date}</div></div><input className="compact-time" aria-label={`${t.text} цаг`} type="time" value={t.time||""} onChange={e=>updateTask(t.id,{time:e.target.value})}/><button aria-label={`${t.text} устгах`} onClick={()=>deleteTask(t.id)}><Trash2 size={17}/></button></div>)}</div>:<Empty text="Ажил алга байна."/>}</Card></div>
 }
 
 function Habits({data,addHabit,toggleHabit,today,date,setDate}){
@@ -449,33 +449,44 @@ function Water({data,setWater,today}){
 }
 
 function Meals({data,setMeal,addGrocery,toggleGrocery,deleteGrocery,today}){
-  const [g,setG]=useState("");const meal=data.meals[today]||{};
-  const types=[["breakfast","Өглөөний хоол"],["lunch","Өдрийн хоол"],["dinner","Оройн хоол"]];
-  return <div className="space-y-5"><Card><SectionTitle icon={Utensils} title="Meal Planner" sub={today}/><div className="grid gap-4 md:grid-cols-3">{types.map(([k,label])=><label key={k} className="rounded-2xl bg-[#fbf7f7] p-4 text-sm font-bold">{label}<textarea className="field mt-2 min-h-28" value={meal[k]||""} onChange={e=>setMeal(today,k,e.target.value)} placeholder="Энд хоолоо бич..."/><button className="btn btn-soft mt-2 w-full" onClick={()=>addGrocery(`Орц: ${meal[k]||label}`)}>+ Grocery-д нэмэх</button></label>)}</div></Card>
-  <Card><h3 className="font-extrabold">Quick Grocery</h3><div className="mt-2 flex gap-2"><input className="field" value={g} onChange={e=>setG(e.target.value)} placeholder="Сүү, өндөг, талх..."/><button className="btn btn-primary" onClick={()=>{addGrocery(g);setG("")}}><Plus/></button></div><Grocery data={data} toggleGrocery={toggleGrocery} deleteGrocery={deleteGrocery}/></Card></div>
+  const [g,setG]=useState(""),[kind,setKind]=useState("breakfast"),[suggestionIndex,setSuggestionIndex]=useState(0);
+  const meal=data.meals[today]||{},types=[["breakfast","Өглөөний хоол"],["lunch","Өдрийн хоол"],["snack","Зууш"],["dinner","Оройн хоол"]];
+  const suggestion=suggestionFor(kind,suggestionIndex),kindLabel=types.find(([key])=>key===kind)?.[1];
+  return <div className="space-y-5"><Card><SectionTitle icon={Utensils} title="Хоолны төлөвлөгөө" sub={today}/><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{types.map(([key,label])=><label key={key} className="rounded-2xl bg-[#fbf7f7] p-4 text-sm font-bold">{label}<textarea className="field mt-2 min-h-28" value={meal[key]||""} onChange={event=>setMeal(today,key,event.target.value)} placeholder="Хоолоо энд бичээрэй..."/></label>)}</div></Card>
+  <Card><SectionTitle icon={Sparkles} title="Өнөөдрийн хоолны санаа" sub="Төхөөрөмж дээр ажиллах, тогтмол саналууд"/><div className="mb-4 flex gap-2 overflow-x-auto">{types.map(([key,label])=><button key={key} onClick={()=>{setKind(key);setSuggestionIndex(0)}} className={`btn shrink-0 ${kind===key?"btn-primary":"btn-soft"}`}>{label}</button>)}</div><article className="meal-suggestion"><div><span className="eyebrow">{kindLabel}</span><h3 className="serif mt-1 text-2xl font-bold">{suggestion.name}</h3><p className="mt-3 text-sm"><b>Орц:</b> {suggestion.ingredients.join(", ")}</p><p className="mt-1 text-sm"><b>Бэлтгэх хугацаа:</b> {suggestion.minutes} мин</p><p className="mt-1 text-sm text-[#765b65]">{suggestion.benefit}</p></div><div className="flex flex-wrap gap-2"><button className="btn btn-primary" onClick={()=>setMeal(today,kind,suggestion.name)}>Өнөөдрийн хоолонд нэмэх</button><button className="btn btn-soft" onClick={()=>setSuggestionIndex(index=>index+1)}>Өөр санал</button><button className="btn btn-ghost" onClick={()=>suggestion.ingredients.forEach(addGrocery)}>Орцуудыг хүнсэнд нэмэх</button></div></article></Card>
+  <Card><h3 className="font-extrabold">Хүнсний жагсаалт</h3><div className="mt-2 flex gap-2"><input className="field" value={g} onChange={event=>setG(event.target.value)} placeholder="Сүү, өндөг, талх..."/><button className="btn btn-primary" onClick={()=>{addGrocery(g);setG("")}}><Plus/></button></div><Grocery data={data} toggleGrocery={toggleGrocery} deleteGrocery={deleteGrocery}/></Card></div>
 }
 function Grocery({data,toggleGrocery,deleteGrocery}){
   return <div className="mt-4 space-y-2">{data.groceries.map(x=><div key={x.id} className="flex items-center gap-2 rounded-xl bg-[#faf5f6] p-2"><input className="check" type="checkbox" checked={x.done} onChange={()=>toggleGrocery(x.id)}/><span className={`flex-1 text-sm ${x.done?"line-through text-[#a88e97]":""}`}>{x.text}</span><button onClick={()=>deleteGrocery(x.id)}><Trash2 size={16}/></button></div>)}</div>
 }
 
-function CalendarPage({data,date,setDate,addEvent,editEvent,deleteEvent}){
-  const [title,setTitle]=useState("");const [d,setD]=useState(todayKey(date));
-  const [mode,setMode]=useState("month");
-  const start=new Date(date.getFullYear(),date.getMonth(),1);const first=start.getDay();const cells=Array.from({length:42},(_,i)=>new Date(date.getFullYear(),date.getMonth(),i-first+1));
-  const selected=data.events.filter(e=>e.date===d);
-  return <div className="space-y-5"><Card><div className="flex flex-wrap items-center justify-between gap-2"><SectionTitle icon={CalendarDays} title="Calendar" sub="Important dates + event CRUD"/><div className="flex gap-1"><button className="btn btn-soft" onClick={()=>setMode("month")}>Month</button><button className="btn btn-soft" onClick={()=>setMode("week")}>Week</button></div></div>
-  {mode==="month"?<><div className="mb-3 flex items-center justify-between"><button className="btn btn-soft" onClick={()=>setDate(new Date(date.getFullYear(),date.getMonth()-1,1))}><ChevronLeft/></button><b>{new Intl.DateTimeFormat("mn-MN",{month:"long",year:"numeric"}).format(date)}</b><button className="btn btn-soft" onClick={()=>setDate(new Date(date.getFullYear(),date.getMonth()+1,1))}><ChevronRight/></button></div><div className="grid grid-cols-7 gap-1">{["Ня","Да","Мя","Лх","Пү","Ба","Бя"].map(x=><div key={x} className="p-2 text-center text-xs font-bold text-[#a1848e]">{x}</div>)}{cells.map(c=>{const k=iso(c),active=c.getMonth()===date.getMonth(),has=data.events.some(e=>e.date===k);return <button key={k} onClick={()=>{setDate(c);setD(k)}} className={`min-h-16 rounded-xl border p-2 text-left ${active?"border-[#eadde1] bg-white":"border-transparent bg-[#faf5f6] opacity-50"} ${k===d?"ring-2 ring-[#7b3f55]":""}`}><span className="text-xs font-bold">{c.getDate()}</span>{has&&<div className="mt-1 h-1.5 w-1.5 rounded-full bg-[#7b3f55]"/>}</button>})}</div></>:<div className="grid gap-2 sm:grid-cols-7">{Array.from({length:7},(_,i)=>new Date(date.getFullYear(),date.getMonth(),date.getDate()-date.getDay()+i)).map(c=><div key={iso(c)} className="rounded-2xl bg-[#faf5f6] p-3"><b className="text-xs">{c.toLocaleDateString("mn-MN",{weekday:"short"})}</b><div className="text-lg font-black">{c.getDate()}</div></div>)}</div>}
-  </Card>
-  <Card><h3 className="font-extrabold">Event нэмэх — {d}</h3><div className="mt-2 grid gap-2 md:grid-cols-[1fr_180px_auto]"><input className="field" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Шалгалт, төрсөн өдөр..."/><input className="field" type="date" value={d} onChange={e=>setD(e.target.value)}/><button className="btn btn-primary" onClick={()=>{addEvent({title,date:d});setTitle("")}}><Plus/></button></div><div className="mt-4 space-y-2">{selected.map(e=><div key={e.id} className="flex items-center gap-3 rounded-2xl bg-[#fbf7f7] p-3"><span className="flex-1 font-semibold">{e.title}</span><button onClick={()=>editEvent(e.id)}><Edit3 size={17}/></button><button onClick={()=>deleteEvent(e.id)}><Trash2 size={17}/></button></div>)}</div></Card></div>
+function CalendarPage({data,date,setDate,addEvent,updateEvent,deleteEvent}){
+  const [title,setTitle]=useState(""),[d,setD]=useState(todayKey(date)),[time,setTime]=useState(""),[mode,setMode]=useState("month");
+  const start=new Date(date.getFullYear(),date.getMonth(),1),first=start.getDay();
+  const cells=Array.from({length:42},(_,i)=>new Date(date.getFullYear(),date.getMonth(),i-first+1));
+  const selectedEvents=data.events.filter(event=>event.date===d),selectedTasks=data.tasks.filter(task=>task.date===d);
+  const hasDate=key=>data.events.some(event=>event.date===key)||data.tasks.some(task=>task.date===key);
+  const choose=value=>{setDate(value);setD(iso(value))};
+  return <div className="space-y-5"><Card><div className="flex flex-wrap items-center justify-between gap-2"><SectionTitle icon={CalendarDays} title="Календарь" sub="Үйл явдал болон огноотой ажлууд"/><div className="flex gap-1"><button className={`btn ${mode==="month"?"btn-primary":"btn-soft"}`} onClick={()=>setMode("month")}>Сар</button><button className={`btn ${mode==="week"?"btn-primary":"btn-soft"}`} onClick={()=>setMode("week")}>7 хоног</button></div></div>
+  {mode==="month"?<><div className="mb-3 flex items-center justify-between"><button className="btn btn-soft" onClick={()=>setDate(new Date(date.getFullYear(),date.getMonth()-1,1))}><ChevronLeft/></button><b>{new Intl.DateTimeFormat("mn-MN",{month:"long",year:"numeric"}).format(date)}</b><button className="btn btn-soft" onClick={()=>setDate(new Date(date.getFullYear(),date.getMonth()+1,1))}><ChevronRight/></button></div><div className="grid grid-cols-7 gap-1">{["Ня","Да","Мя","Лх","Пү","Ба","Бя"].map(value=><div key={value} className="p-2 text-center text-xs font-bold text-[#a1848e]">{value}</div>)}{cells.map(cell=>{const k=iso(cell),active=cell.getMonth()===date.getMonth();return <button key={k} onClick={()=>choose(cell)} className={`min-h-16 rounded-xl border p-2 text-left ${active?"border-[#eadde1] bg-white":"border-transparent bg-[#faf5f6] opacity-50"} ${k===d?"ring-2 ring-[#7b3f55]":""}`}><span className="text-xs font-bold">{cell.getDate()}</span>{hasDate(k)&&<div className="mt-1 h-1.5 w-1.5 rounded-full bg-[#7b3f55]"/>}</button>})}</div></>:<div className="grid gap-2 sm:grid-cols-7">{Array.from({length:7},(_,i)=>new Date(date.getFullYear(),date.getMonth(),date.getDate()-date.getDay()+i)).map(cell=><button onClick={()=>choose(cell)} key={iso(cell)} className="rounded-2xl bg-[#faf5f6] p-3 text-left"><b className="text-xs">{cell.toLocaleDateString("mn-MN",{weekday:"short"})}</b><div className="text-lg font-black">{cell.getDate()}</div>{hasDate(iso(cell))&&<small>Төлөвлөгөөтэй</small>}</button>)}</div>}</Card>
+  <Card><h3 className="font-extrabold">Үйл явдал нэмэх — {d}</h3><div className="mt-2 grid gap-2 md:grid-cols-[1fr_170px_130px_auto]"><input className="field" value={title} onChange={event=>setTitle(event.target.value)} placeholder="Шалгалт, төрсөн өдөр..."/><input className="field" type="date" value={d} onChange={event=>setD(event.target.value)}/><input className="field time-field" type="time" aria-label="Үйл явдлын цаг" value={time} onChange={event=>setTime(event.target.value)}/><button className="btn btn-primary" onClick={()=>{addEvent({title,date:d,time});setTitle("");setTime("")}}><Plus/></button></div>
+  <div className="mt-5 space-y-2"><h4 className="calendar-group-title">Календарийн үйл явдал</h4>{selectedEvents.map(event=><div key={event.id} className="calendar-item"><span className="min-w-0 flex-1 font-semibold">{event.title}</span><input className="compact-time" type="time" aria-label={`${event.title} цаг`} value={event.time||""} onChange={e=>updateEvent(event.id,{time:e.target.value})}/><button aria-label={`${event.title} устгах`} onClick={()=>deleteEvent(event.id)}><Trash2 size={17}/></button></div>)}{!selectedEvents.length&&<p className="soft-empty">Үйл явдал алга.</p>}<h4 className="calendar-group-title pt-3">Ажлууд · Tasks-ийн мэдээлэл</h4>{selectedTasks.map(task=><div key={task.id} className={`calendar-item ${task.done?"opacity-55":""}`}><CheckCircle2 size={17}/><span className={`min-w-0 flex-1 font-semibold ${task.done?"line-through":""}`}>{task.text}</span><time className="text-sm font-bold text-[#7b3f55]">{task.time||"Цаггүй"}</time></div>)}{!selectedTasks.length&&<p className="soft-empty">Энэ өдөрт ажил алга.</p>}</div></Card></div>
 }
 
-function Goals({data,addGoal,updateGoal,toggleGoal,deleteGoal}){
-  const [form,setForm]=useState({text:"",target:"",current:"",deadline:""});
-  const set=(key,value)=>setForm(x=>({...x,[key]:value}));
-  return <div className="space-y-5"><Card><SectionTitle icon={Target} title="Smart Goals" sub="Deadline, progress, Finance-тэй холбогдсон зорилго"/><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_auto]"><input className="field" value={form.text} onChange={e=>set("text",e.target.value)} placeholder="Зорилгын нэр"/><input className="field" type="number" value={form.target} onChange={e=>set("target",e.target.value)} placeholder="Target amount / value"/><input className="field" type="number" value={form.current} onChange={e=>set("current",e.target.value)} placeholder="Current progress"/><input className="field" type="date" value={form.deadline} onChange={e=>set("deadline",e.target.value)}/><button className="btn btn-primary" onClick={()=>{addGoal({...form,target:Number(form.target),current:Number(form.current)});setForm({text:"",target:"",current:"",deadline:""})}}><Plus/></button></div></Card>
-  {data.goals.length?<div className="grid gap-5 xl:grid-cols-2">{data.goals.map(g=><GoalCard key={g.id} goal={g} finance={data.finance} updateGoal={updateGoal} toggleGoal={toggleGoal} deleteGoal={deleteGoal}/>)}</div>:<Card><Empty text="Зорилго алга байна."/></Card>}</div>
+function Goals({data,addGoal,updateGoal,toggleGoal,deleteGoal,addTask,today}){
+  const [form,setForm]=useState({text:"",target:"",current:"",deadline:""}),set=(key,value)=>setForm(current=>({...current,[key]:value}));
+  return <div className="space-y-5"><Card><SectionTitle icon={Target} title="Зорилгууд" sub="Том зорилгоос өнөөдрийн бодит алхам хүртэл"/><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-[1.4fr_1fr_1fr_1fr_auto]"><input className="field" value={form.text} onChange={event=>set("text",event.target.value)} placeholder="Зорилгын нэр"/><input className="field" type="number" value={form.target} onChange={event=>set("target",event.target.value)} placeholder="Зорилтот утга"/><input className="field" type="number" value={form.current} onChange={event=>set("current",event.target.value)} placeholder="Одоогийн утга"/><input className="field" type="date" value={form.deadline} onChange={event=>set("deadline",event.target.value)}/><button className="btn btn-primary" onClick={()=>{addGoal({...form,target:Number(form.target),current:Number(form.current),steps:[]});setForm({text:"",target:"",current:"",deadline:""})}}><Plus/></button></div></Card>
+  {data.goals.length?<div className="grid gap-5 xl:grid-cols-2">{data.goals.map(goal=><GoalCard key={goal.id} goal={goal} finance={data.finance} updateGoal={updateGoal} toggleGoal={toggleGoal} deleteGoal={deleteGoal} addTask={addTask} today={today} taskExists={data.tasks.some(task=>task.sourceId===`goal:${goal.id}:step:0`)}/>)}</div>:<Card><Empty text="Зорилго алга байна."/></Card>}</div>
 }
-function GoalCard({goal,finance,updateGoal,toggleGoal,deleteGoal}){const s=goalStats(goal,finance),tone=s.status==="Completed"?"bg-[#e5f0e7] text-[#52705a]":s.status==="At risk"?"bg-[#fae8e8] text-[#9a4d54]":"bg-[#f5e8ed] text-[#713a50]";return <Card><div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}>{s.status}</span><h3 className="mt-3 text-xl font-black text-[#4a313b]">{goal.text}</h3></div><div className="flex gap-2"><button onClick={()=>toggleGoal(goal.id)} aria-label="Completed"><Check size={18}/></button><button onClick={()=>deleteGoal(goal.id)} aria-label="Delete"><Trash2 size={18}/></button></div></div><div className="mt-4 h-3 overflow-hidden rounded-full bg-[#f0e2e7]"><div className="h-full rounded-full bg-[#7b3f55]" style={{width:`${s.progress}%`}}/></div><div className="mt-2 flex justify-between text-sm"><b>{s.progress}%</b><span className="text-[#94727e]">{s.daysRemaining===null?"Deadline оруулаагүй":`${s.daysRemaining} өдөр үлдсэн`}</span></div><div className="mt-4 grid grid-cols-2 gap-2"><label className="text-xs font-bold">Target<input className="field mt-1" type="number" value={goal.target||""} onChange={e=>updateGoal(goal.id,{target:Number(e.target.value)})}/></label><label className="text-xs font-bold">Current<input className="field mt-1" type="number" value={goal.current||""} onChange={e=>updateGoal(goal.id,{current:Number(e.target.value)})}/></label><label className="col-span-2 text-xs font-bold">Deadline<input className="field mt-1" type="date" value={goal.deadline||""} onChange={e=>updateGoal(goal.id,{deadline:e.target.value})}/></label></div>{s.target>0&&<div className="mt-4 rounded-2xl border border-[#eadde1] bg-[#fffaf9] p-4"><b className="text-sm text-[#713a50]">Goal Strategy</b><div className="mt-3 grid grid-cols-2 gap-2 text-sm"><HealthRow label="Remaining" value={money(s.remaining)}/><HealthRow label="Monthly" value={money(s.requiredMonthly)}/><HealthRow label="Weekly" value={money(s.requiredWeekly)}/><HealthRow label="Realistic" value={s.realistic===null?"Deadline хэрэгтэй":s.realistic?"Тийм":"Одоогоор үгүй"}/></div></div>}</Card>}
+function GoalCard({goal,finance,updateGoal,toggleGoal,deleteGoal,addTask,taskExists}){
+ const [step,setStep]=useState(""),s=goalStats(goal,finance),tone=s.status==="Completed"?"bg-[#e5f0e7] text-[#52705a]":s.status==="At risk"?"bg-[#fae8e8] text-[#9a4d54]":"bg-[#f5e8ed] text-[#713a50]",steps=Array.isArray(goal.steps)?goal.steps:[];
+ const addStep=()=>{if(!step.trim())return;updateGoal(goal.id,{steps:[...steps,step.trim()]});setStep("")};
+ const buildPlan=()=>{const plan=makeGoalPlan(goal);if(plan)updateGoal(goal.id,{plan})};
+ return <Card><div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-3 py-1 text-xs font-black ${tone}`}>{s.status}</span><h3 className="mt-3 text-xl font-black text-[#4a313b]">{goal.text}</h3></div><div className="flex gap-2"><button onClick={()=>toggleGoal(goal.id)} aria-label="Дууссан болгох"><Check size={18}/></button><button onClick={()=>deleteGoal(goal.id)} aria-label="Устгах"><Trash2 size={18}/></button></div></div><div className="mt-4 h-3 overflow-hidden rounded-full bg-[#f0e2e7]"><div className="h-full rounded-full bg-[#7b3f55]" style={{width:`${s.progress}%`}}/></div><div className="mt-2 flex justify-between text-sm"><b>{s.progress}%</b><span className="text-[#94727e]">{s.daysRemaining===null?"Хугацаа оруулаагүй":`${s.daysRemaining} өдөр үлдсэн`}</span></div>
+ <div className="mt-4 grid grid-cols-2 gap-2"><label className="text-xs font-bold">Зорилтот утга<input className="field mt-1" type="number" value={goal.target||""} onChange={event=>updateGoal(goal.id,{target:Number(event.target.value)})}/></label><label className="text-xs font-bold">Одоогийн утга<input className="field mt-1" type="number" value={goal.current||""} onChange={event=>updateGoal(goal.id,{current:Number(event.target.value)})}/></label><label className="col-span-2 text-xs font-bold">Хугацаа<input className="field mt-1" type="date" value={goal.deadline||""} onChange={event=>updateGoal(goal.id,{deadline:event.target.value})}/></label></div>
+ <div className="goal-plan mt-5"><h4 className="font-extrabold">Алхамууд / Milestones</h4><div className="mt-2 flex gap-2"><input className="field" value={step} onChange={event=>setStep(event.target.value)} onKeyDown={event=>{if(event.key==="Enter")addStep()}} placeholder="Жишээ: Vocabulary сайжруулах"/><button className="btn btn-soft" onClick={addStep}><Plus size={17}/></button></div>{steps.map((value,index)=><div className="glass-row mt-2" key={`${value}-${index}`}><span className="step-number">{index+1}</span><span>{value}</span></div>)}<button className="btn btn-primary mt-3 w-full" disabled={!steps.length} onClick={buildPlan}>План гаргах</button>{!steps.length&&<p className="mt-2 text-xs text-[#8b6975]">План гаргахын өмнө өөрийн бодит алхмуудаас дор хаяж нэгийг нэмнэ үү.</p>}</div>
+ {goal.plan&&<div className="mt-4 rounded-2xl bg-[#f8edf1] p-4"><div className="plan-flow"><b>Том зорилго</b><span>↓</span><b>{goal.plan.milestones.length} алхам</b><span>↓</span><b>{goal.plan.weekly.length} долоо хоногийн ажил</b><span>↓</span><b>{goal.plan.today.text}</b></div><button className="btn btn-soft mt-3 w-full" disabled={taskExists} onClick={()=>addTask(goal.plan.today.text,goal.plan.today.date,{sourceId:goal.plan.today.sourceId,goalId:goal.id,priority:"medium"})}>{taskExists?"Өнөөдрийн ажил аль хэдийн нэмэгдсэн":"Өнөөдрийн алхмыг Tasks-д нэмэх"}</button></div>}</Card>
+}
 
 function SettingsPage({exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud,data}){
   const [mode,setMode]=useState("login");

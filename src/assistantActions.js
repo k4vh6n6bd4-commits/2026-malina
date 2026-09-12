@@ -54,6 +54,37 @@ export function executeAssistantCommand(source,raw,now=new Date()){
   for(const part of parts){
     const q=lower(part),hasDate=containsDate(part),date=hasDate?parseDate(part,now):carriedDate,time=parseTime(part);if(hasDate)carriedDate=date;
     if(/бүгд|бүх/.test(q)&&/устга|delete/.test(q)){questions.push("Олон мэдээлэл устгах гэж байна. Яг аль хэсгийн мэдээллийг устгахыг хүсэж байна вэ?");continue}
+    if(/өнөөдрийн/.test(q)&&/хуваарь/.test(q)&&/хөнгөн/.test(q)){
+      const today=key(now),open=(data.tasks||[]).filter(item=>(item.date||today)===today&&!item.done);
+      if(open.length<=3){questions.push("Өнөөдрийн нээлттэй ажил 3-аас ихгүй тул шилжүүлэх шаардлагагүй байна.");continue}
+      const tomorrow=new Date(now);tomorrow.setDate(tomorrow.getDate()+1);const nextDate=key(tomorrow),moving=new Set(open.slice(3).map(item=>item.id));
+      data.tasks=data.tasks.map(item=>moving.has(item.id)?{...item,date:nextDate}:item);actions.push(`${moving.size} ажлыг ${nextDate} руу шилжүүлж өнөөдрийн хуваарийг хөнгөллөө`);continue
+    }
+    const mentionedTimes=[...part.matchAll(/(?:^|\s)([01]?\d|2[0-3]):([0-5]\d)(?=\s|$|т)/g)].map(match=>`${String(Number(match[1])).padStart(2,"0")}:${match[2]}`);
+    if(mentionedTimes.length>=2&&/ажил|task|таск/.test(q)&&/болго|өөрчил|шилжүүл/.test(q)){
+      const [from,to]=mentionedTimes,task=(data.tasks||[]).find(item=>item.time===from)||bestMatch(data.tasks||[],part,"text");
+      if(!task){questions.push(`${from} цагтай ажил олдсонгүй.`);continue}
+      data.tasks=data.tasks.map(item=>item.id===task.id?{...item,time:to}:item);actions.push(`“${task.text}” ажлын цаг ${from}-оос ${to} боллоо`);continue
+    }
+    if(mentionedTimes.length>=2&&/event|эвент|үйл явдал|уулзалт/.test(q)&&/болго|өөрчил|шилжүүл/.test(q)){
+      const [from,to]=mentionedTimes,event=(data.events||[]).find(item=>item.time===from)||bestMatch(data.events||[],part,"title");
+      if(!event){questions.push(`${from} цагтай үйл явдал олдсонгүй.`);continue}
+      data.events=data.events.map(item=>item.id===event.id?{...item,time:to}:item);actions.push(`“${event.title}” үйл явдлын цаг ${from}-оос ${to} боллоо`);continue
+    }
+    if(/маргааш/.test(q)&&/ажил|task|таск/.test(q)&&/болго|шилжүүл/.test(q)){
+      const task=bestMatch(data.tasks||[],part,"text");if(!task){questions.push("Маргааш руу шилжүүлэх ажлыг олсонгүй.");continue}
+      const tomorrow=new Date(now);tomorrow.setDate(tomorrow.getDate()+1);const nextDate=key(tomorrow);
+      data.tasks=data.tasks.map(item=>item.id===task.id?{...item,date:nextDate}:item);actions.push(`“${task.text}” ажил ${nextDate} руу шилжлээ`);continue
+    }
+    if(/хоол/.test(q)&&/нэм|бүртгэ/.test(q)){
+      const type=/өглөө/.test(q)?"breakfast":/зууш/.test(q)?"snack":/орой/.test(q)?"dinner":"lunch";
+      const name=clean(part.replace(/өнөөдөр|маргааш|өглөөний|өдрийн|оройн|зууш|хоол(?:онд)?|нэм|бүртгэ/gi,""));if(!name){questions.push("Нэмэх хоолны нэрийг бичнэ үү.");continue}
+      data.meals={...(data.meals||{}),[date]:{...(data.meals?.[date]||{}),[type]:name}};actions.push(`${name} хоолны төлөвлөгөөнд нэмэгдлээ`);continue
+    }
+    if(/grocery|хүнс/.test(q)&&/нэм/.test(q)){
+      const name=clean(part.replace(/grocery|хүнс(?:ний)?|жагсаалт(?:ад)?|нэм/gi,""));if(!name){questions.push("Нэмэх хүнсээ бичнэ үү.");continue}
+      data.groceries=[...(data.groceries||[]),{id:id(),text:name,done:false}];actions.push(`${name} хүнсний жагсаалтад нэмэгдлээ`);continue
+    }
     const courseMatch=part.match(/(?:(намар|хавар|зуны|summer|spring|fall)\s*)?(20\d{2})\s*(?:оны\s*)?семестр(?:т|д)?[,:]?\s*(.+?)\s+хичээл\s+(\d+(?:[.,]\d+)?)\s*credit\s*[, ]*([A-F](?:[+-])?)\s*(?:үнэлгээтэй)?(?:\s*нэм)?$/i);
     if(courseMatch){
       const seasonRaw=courseMatch[1],year=courseMatch[2],courseName=clean(courseMatch[3]),credits=Number(courseMatch[4].replace(",",".")),grade=courseMatch[5].toUpperCase();

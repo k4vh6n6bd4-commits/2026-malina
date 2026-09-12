@@ -6,7 +6,7 @@ const key=localDateKey;
 const daysAgo=n=>{const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-n);return d};
 const week=()=>Array.from({length:7},(_,i)=>daysAgo(6-i));
 const dayLabel=d=>new Intl.DateTimeFormat("mn-MN",{weekday:"short"}).format(d).replace(".","");
-const mealTypes=[["breakfast","Breakfast","08:00"],["lunch","Lunch","13:00"],["dinner","Dinner","19:00"]];
+const mealTypes=[["breakfast","Өглөөний хоол","08:00"],["lunch","Өдрийн хоол","13:00"],["snack","Зууш","16:00"],["dinner","Оройн хоол","19:00"]];
 
 function streak(habit){
   let current=0,best=0,run=0;
@@ -22,7 +22,7 @@ export function wellnessStats(data,day=key(new Date())){
   const meal=data.meals?.[day]||{};
   const mealDone=mealTypes.filter(([type])=>String(meal[type]||"").trim()).length;
   const water=Math.min(8,Number(data.water?.[day]||0));
-  const waterPct=Math.round(water/8*100),habitPct=habits.length?Math.round(habitDone/habits.length*100):0,mealPct=Math.round(mealDone/3*100);
+  const waterPct=Math.round(water/8*100),habitPct=habits.length?Math.round(habitDone/habits.length*100):0,mealPct=Math.round(mealDone/mealTypes.length*100);
   return {habits,habitDone,meal,mealDone,water,waterPct,habitPct,mealPct,score:Math.round((waterPct+habitPct+mealPct)/3)};
 }
 
@@ -49,7 +49,7 @@ export default function Wellness({data,today,setWater,toggleHabit,setMeal,addGro
     </div>
 
     <div className="grid gap-5 xl:grid-cols-2">
-      <Card><SectionTitle icon={Utensils} title="Today's meals" sub={`${stats.mealDone}/3 planned · ${stats.mealPct}%`}/><div className="space-y-3">{mealTypes.map(([type,label,time])=><label key={type} className="block rounded-2xl bg-[#fbf7f7] p-3"><div className="flex items-center justify-between text-sm"><b>{label}</b><span className="text-xs font-bold text-[#a17c89]">{time}</span></div><input className="field mt-2" value={stats.meal[type]||""} onChange={e=>setMeal(today,type,e.target.value)} placeholder={`${label} төлөвлөх...`}/></label>)}</div><MiniBar pct={stats.mealPct}/></Card>
+      <Card><SectionTitle icon={Utensils} title="Өнөөдрийн хоол" sub={`${stats.mealDone}/${mealTypes.length} төлөвлөсөн · ${stats.mealPct}%`}/><div className="space-y-3">{mealTypes.map(([type,label,time])=><label key={type} className="block rounded-2xl bg-[#fbf7f7] p-3"><div className="flex items-center justify-between text-sm"><b>{label}</b><span className="text-xs font-bold text-[#a17c89]">{time}</span></div><input className="field mt-2" value={stats.meal[type]||""} onChange={e=>setMeal(today,type,e.target.value)} placeholder={`${label} төлөвлөх...`}/></label>)}</div><MiniBar pct={stats.mealPct}/></Card>
       <Card><SectionTitle icon={ShoppingBasket} title="Grocery list" sub={`${remaining} remaining · ${(data.groceries||[]).length-remaining} checked`}/><form className="flex gap-2" onSubmit={e=>{e.preventDefault();addGrocery(item);setItem("")}}><input className="field" value={item} onChange={e=>setItem(e.target.value)} placeholder="Quick add item..."/><button className="btn btn-primary" aria-label="Add grocery"><Plus/></button></form><div className="mt-4 space-y-2">{(data.groceries||[]).map(g=><div key={g.id} className="flex items-center gap-3 rounded-2xl bg-[#fbf7f7] p-3"><input className="check" type="checkbox" checked={g.done} onChange={()=>toggleGrocery(g.id)}/><span className={`min-w-0 flex-1 text-sm font-semibold ${g.done?"text-[#a88e97] line-through":""}`}>{g.text}</span><button onClick={()=>deleteGrocery(g.id)} aria-label={`Delete ${g.text}`}><ChevronRight size={17} className="rotate-90 text-[#b18b98]"/></button></div>)}{!(data.groceries||[]).length&&<div className="rounded-2xl bg-[#faf5f6] p-5 text-center text-sm text-[#9b7d87]">Grocery list хоосон байна.</div>}</div></Card>
     </div>
   </div>

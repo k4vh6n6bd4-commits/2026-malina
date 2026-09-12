@@ -28,10 +28,13 @@ function Metric({icon:Icon,label,value,detail,pct,tone="rose",empty}){
   </section>
 }
 
+const morningMessages=["Өнөөдөр өөртөө багахан итгэл өгөөд эхэл.","Яарах хэрэггүй. Нэг чухал зүйлээсээ эхэл.","Чи бүхнийг нэг өдөрт амжуулах албагүй.","Өнөөдөр өөрийнхөө төлөө нэг жижиг алхам хий.","Зөөлөн эхлэл ч гэсэн урагшлах алхам.","Өөрийн хэмнэлээ сонсоод, чухал зүйлдээ төвлөр.","Өнөөдрийн багахан ахиц маргаашийн суурь болно."];
+
 export default function MyLife({data,today,navigate,toggleTask,Card,SectionTitle}){
   const now=new Date(), hour=now.getHours();
-  const greeting=hour<12?"Good morning":hour<18?"Good afternoon":"Good evening";
-  const message=hour<10?"Start gently. One meaningful step is enough.":hour<17?"Let's make today count.":"Finish with intention, then make space to rest.";
+  const greeting=hour<12?"Өглөөний мэнд":hour<18?"Өдрийн мэнд":"Оройн мэнд";
+  const dayNumber=Math.floor(new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime()/86400000);
+  const message=morningMessages[Math.abs(dayNumber)%morningMessages.length];
   const plan=dayPlan(data,now), action=nextAction(data,now);
   const todayTasks=(data.tasks||[]).filter(t=>(t.date||today)===today);
   const taskDone=todayTasks.filter(t=>t.done).length, taskPct=todayTasks.length?taskDone/todayTasks.length*100:0;
