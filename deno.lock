@@ -11,13 +11,9 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
-        "npm:@netlify/database@^2.0.1",
         "npm:@netlify/functions@6",
-        "npm:@netlify/identity@2",
         "npm:@tailwindcss/vite@4",
         "npm:@vitejs/plugin-react@^4.3.4",
-        "npm:drizzle-kit@^1.0.0-beta.22",
-        "npm:drizzle-orm@^1.0.0-beta.22",
         "npm:lucide-react@0.468",
         "npm:react-dom@^18.3.1",
         "npm:react@^18.3.1",
