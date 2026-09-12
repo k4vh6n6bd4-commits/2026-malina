@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { getUser, handleAuthCallback, login as identityLogin, logout as identityLogout, signup as identitySignup } from "@netlify/identity";
+import { requireSupabase, supabase } from "./lib/supabase.js";
 import {
   CalendarDays, Check, CheckCircle2, ChevronLeft, ChevronRight, CircleDollarSign, ClipboardList,
   Droplets, Edit3, Home, ListChecks, Menu, Plus, RotateCcw, Settings, Target,
@@ -20,6 +20,7 @@ import {suggestionFor} from "./mealSuggestions.js";
 import {makeGoalPlan} from "./goalPlanner.js";
 
 const KEY="malina-planner-v1";
+const cloudTimestampKey=userId=>`malina-planner-cloud-updated-at:${userId}`;
 
 function load(){
   try{const saved=localStorage.getItem(KEY);return normalizePlannerData(saved?JSON.parse(saved):{}, {withStarterHabits:!saved});}
@@ -83,7 +84,7 @@ function App(){
   const [syncReady,setSyncReady]=useState(false);
   const [syncStatus,setSyncStatus]=useState("Офлайн");
   const [syncConflict,setSyncConflict]=useState(null);
-  const syncBaseRef=useRef(localStorage.getItem("malina-planner-cloud-updated-at")||"");
+  const syncBaseRef=useRef("");
   const syncTimerRef=useRef(null);
   const syncingRef=useRef(false);
 
@@ -114,10 +115,10 @@ function App(){
   }
 
   async function fetchCloud(){
-    const response=await fetch('/api/planner-sync',{credentials:'same-origin',cache:'no-store'});
-    const result=await response.json().catch(()=>({}));
-    if(!response.ok)throw Error(result.error||'Cloud sync амжилтгүй боллоо');
-    return result;
+    if(!authUser)return {data:null,updatedAt:null};
+    const {data:row,error}=await requireSupabase().from('planner_data').select('data, updated_at').eq('user_id',authUser.id).maybeSingle();
+    if(error)throw error;
+    return {data:row?.data||null,updatedAt:row?.updated_at||null};
   }
 
   async function syncToCloud(nextData=data,confirmMigration=false){
@@ -125,17 +126,19 @@ function App(){
     syncingRef.current=true;
     setSyncStatus('Cloud-д хадгалж байна…');
     try{
-      const response=await fetch('/api/planner-sync',{method:'PUT',headers:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({data:nextData,baseUpdatedAt:syncBaseRef.current||null,confirmMigration})});
-      const result=await response.json().catch(()=>({}));
-      if(response.status===409){
-        const latest=await fetchCloud().catch(()=>null);
-        if(latest?.data){setSyncConflict(latest.data);syncBaseRef.current=latest.updatedAt||syncBaseRef.current;setSyncStatus('2 төхөөрөмжийн мэдээлэл зөрж байна');}
-        else setSyncStatus('Синк зөрчилтэй');
+      const client=requireSupabase();
+      const latest=await fetchCloud();
+      const cloudTime=latest.updatedAt?new Date(latest.updatedAt).getTime():0;
+      const baseTime=syncBaseRef.current?new Date(syncBaseRef.current).getTime():0;
+      if(latest.data&&cloudTime>baseTime&&!confirmMigration){
+        setSyncConflict(latest.data);syncBaseRef.current=latest.updatedAt||syncBaseRef.current;setSyncStatus('2 төхөөрөмжийн мэдээлэл зөрж байна');
         return false;
       }
-      if(!response.ok)throw Error(result.error||'Cloud sync амжилтгүй боллоо');
-      syncBaseRef.current=result.updatedAt||'';
-      localStorage.setItem('malina-planner-cloud-updated-at',syncBaseRef.current);
+      const updatedAt=new Date().toISOString();
+      const {error}=await client.from('planner_data').upsert({user_id:authUser.id,data:nextData,updated_at:updatedAt},{onConflict:'user_id'});
+      if(error)throw error;
+      syncBaseRef.current=updatedAt;
+      localStorage.setItem(cloudTimestampKey(authUser.id),syncBaseRef.current);
       setSyncConflict(null);
       setSyncStatus(`Cloud-д хадгаллаа · ${countsLabel(nextData)}`);
       return true;
@@ -164,7 +167,7 @@ function App(){
       }
       setData(normalizePlannerData(result.data));
       syncBaseRef.current=result.updatedAt||'';
-      localStorage.setItem('malina-planner-cloud-updated-at',syncBaseRef.current);
+      localStorage.setItem(cloudTimestampKey(authUser.id),syncBaseRef.current);
       setSyncConflict(null);
       setSyncReady(true);
       setSyncStatus(`Cloud-оос сэргээгдлээ · ${countsLabel(result.data)}`);
@@ -174,22 +177,24 @@ function App(){
   }
 
  useEffect(()=>{
-  (async()=>{
-    try{
-      await handleAuthCallback();
-      const user=await getUser();
-      setAuthUser(user?{id:user.id,email:user.email}:null);
-    }catch{
-      setAuthUser(null);
-    }finally{
-      setAuthLoading(false);
-    }
-  })();
+  if(!supabase){setAuthUser(null);setAuthLoading(false);return;}
+  let active=true;
+  supabase.auth.getSession().then(({data:{session},error})=>{
+    if(error)throw error;
+    if(active)setAuthUser(session?.user?{id:session.user.id,email:session.user.email}:null);
+  }).catch(()=>{if(active)setAuthUser(null)}).finally(()=>{if(active)setAuthLoading(false)});
+  const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>{
+    if(!active)return;
+    setAuthUser(session?.user?{id:session.user.id,email:session.user.email}:null);
+    setAuthLoading(false);
+  });
+  return()=>{active=false;subscription.unsubscribe()};
 },[]);
 
   useEffect(()=>{
     if(!authUser){setSyncReady(false);setSyncStatus('Офлайн');return;}
     let active=true;
+    syncBaseRef.current=localStorage.getItem(cloudTimestampKey(authUser.id))||'';
     setSyncReady(false);setSyncStatus('Cloud шалгаж байна…');
     fetchCloud()
       .then(async result=>{
@@ -202,7 +207,7 @@ function App(){
             return;
           }
           setData(normalizePlannerData(result.data));
-          if(result.updatedAt)localStorage.setItem('malina-planner-cloud-updated-at',result.updatedAt);
+          if(result.updatedAt)localStorage.setItem(cloudTimestampKey(authUser.id),result.updatedAt);
           setSyncReady(true);
           setSyncStatus(`Cloud-оос сэргээгдлээ · ${countsLabel(result.data)}`);
         }else{
@@ -224,20 +229,22 @@ function App(){
   },[data,authUser,syncReady,syncConflict]);
 
   async function loginUser(email,password){
-    const user=await identityLogin(email,password);
+    const {data:{user},error}=await requireSupabase().auth.signInWithPassword({email,password});
+    if(error)throw error;
     setAuthUser(user?{id:user.id,email:user.email}:null);
     setSyncStatus('Нэвтэрлээ');
     return user;
   }
   async function signupUser(email,password){
-    await identitySignup(email,password);
-    const user=await identityLogin(email,password);
+    const {data:{user,session},error}=await requireSupabase().auth.signUp({email,password});
+    if(error)throw error;
+    if(!session)return user;
     setAuthUser(user?{id:user.id,email:user.email}:null);
     setSyncStatus('Account үүслээ, нэвтэрлээ');
     return user;
   }
   async function logoutUser(){
-    try{await identityLogout()}finally{setAuthUser(null);setSyncReady(false);setSyncConflict(null);setSyncStatus('Офлайн')};
+    try{const {error}=await requireSupabase().auth.signOut();if(error)throw error}finally{setAuthUser(null);setSyncReady(false);setSyncConflict(null);setSyncStatus('Офлайн')};
   }
   async function useLocalAndUpload(){
     const ok=await syncToCloud(data,true);
