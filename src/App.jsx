@@ -96,7 +96,9 @@ function App(){
       Object.keys(d.finance?.monthlySavings||{}).length>0 || Object.keys(d.water||{}).length>0 ||
       Object.keys(d.meals||{}).length>0 || (d.groceries||[]).length>0 || (d.goals||[]).length>0 ||
       (d.events||[]).length>0 || (d.aiActions||[]).length>0 ||
-      Object.keys(d.dailyReviews||{}).length>0 || (d.education?.semesters||[]).some(s=>(s.courses||[]).length>0);
+      Object.keys(d.dailyReviews||{}).length>0 ||
+      Object.values(d.education?.studyWall||{}).some(value=>Array.isArray(value)&&value.length>0) ||
+      (d.education?.semesters||[]).some(s=>(s.courses||[]).some(c=>(c.confidence||[]).length>0)|| (s.courses||[]).length>0);
   },[data]);
 
   function dataCounts(d){
