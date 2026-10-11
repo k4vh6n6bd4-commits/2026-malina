@@ -77,6 +77,9 @@ export default function StudyWallPlanner({ education = {}, onChange, notify = ()
   const [timerFinished, setTimerFinished] = useState(false);
   const [semesterEdit, setSemesterEdit] = useState({ id: "", startDate: "", endDate: "" });
   const [error, setError] = useState("");
+  const selectedSemester = semesters.find(s => s.id === semesterEdit.id) || semesters[0] || null;
+  const semesterStartDate = semesterEdit.id === selectedSemester?.id ? semesterEdit.startDate : selectedSemester?.startDate || "";
+  const semesterEndDate = semesterEdit.id === selectedSemester?.id ? semesterEdit.endDate : selectedSemester?.endDate || "";
 
   const assignments = courses.flatMap(c => arr(c.assignments).map(a => ({ ...a, course: c })));
   const exams = courses.flatMap(c => arr(c.exams).map(e => ({ ...e, course: c })));
@@ -166,8 +169,8 @@ export default function StudyWallPlanner({ education = {}, onChange, notify = ()
     updateAssignment(assignmentId, a => ({ ...a, rubric: arr(a.rubric).map(t => t.id === rubricId ? { ...t, done: !t.done } : t) }));
   }
   function saveSemesterDates() {
-    if (!semesterEdit.id) return;
-    patch({ semesters: semesters.map(s => s.id === semesterEdit.id ? { ...s, startDate: semesterEdit.startDate, endDate: semesterEdit.endDate } : s) });
+    if (!selectedSemester) return;
+    patch({ semesters: semesters.map(s => s.id === selectedSemester.id ? { ...s, startDate: semesterStartDate, endDate: semesterEndDate } : s) });
     notify("Улирлын хугацаа хадгалагдлаа.");
   }
   function saveFocusSession() {
@@ -196,9 +199,11 @@ export default function StudyWallPlanner({ education = {}, onChange, notify = ()
   const timerText = String(Math.floor(timerLeft / 60)).padStart(2, "0") + ":" + String(timerLeft % 60).padStart(2, "0");
 
   const timeline = useMemo(() => [
-    ...assignments.map(a => ({ id: a.id, title: a.name, date: a.date, kind: "Даалгавар", courseName: a.course.name, status: a.status, minutes: a.estimatedMinutes || 60 })),
-    ...exams.map(e => ({ id: e.id, title: e.name, date: e.date, kind: "Шалгалт", courseName: e.course.name, status: e.status, minutes: e.minutes || 60 }))
+    ...assignments.map(a => ({ id: a.id, courseId: a.course.id, title: a.name, date: a.date, kind: "Даалгавар", courseName: a.course.name, status: a.status, minutes: a.estimatedMinutes || 60 })),
+    ...exams.map(e => ({ id: e.id, courseId: e.course.id, title: e.name, date: e.date, kind: "Шалгалт", courseName: e.course.name, status: e.status, minutes: e.minutes || 60 }))
   ].filter(x => x.date).sort((a, b) => a.date.localeCompare(b.date)), [education]);
+  const semesterCourseIds = new Set(arr(selectedSemester?.courses).map(c => c.id));
+  const semesterTimeline = timeline.filter(item => semesterCourseIds.has(item.courseId));
   const weekDates = Array.from({ length: 7 }, (_, index) => shiftDate(weekStart(today || todayKey()), index));
   const workload = weekDates.map(date => {
     const dueMinutes = [...assignments.filter(a => a.date === date && a.status !== "Completed"), ...exams.filter(e => e.date === date && e.status !== "Completed")].reduce((sum, x) => sum + Number(x.estimatedMinutes || x.minutes || 60), 0);
@@ -234,8 +239,9 @@ export default function StudyWallPlanner({ education = {}, onChange, notify = ()
       })}</div> : <Empty>Хайлтад тохирох хичээл олдсонгүй.</Empty>}
     </Panel>}
     {module === "semester" && <Panel title="Semester Map" detail="Улирлын огноо болон хичээл, даалгавар, шалгалтын нэгдсэн timeline." icon={CalendarDays}>
-      <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]"><select className="field" value={semesterEdit.id || semesters[0]?.id || ""} onChange={e => { const s = semesters.find(x => x.id === e.target.value); setSemesterEdit({ id: s?.id || "", startDate: s?.startDate || "", endDate: s?.endDate || "" }); }}/><input className="field" aria-label="Улирал эхлэх огноо" type="date" value={semesterEdit.startDate || semesters.find(s => s.id === (semesterEdit.id || semesters[0]?.id))?.startDate || ""} onChange={e => setSemesterEdit({ ...semesterEdit, id: semesterEdit.id || semesters[0]?.id || "", startDate: e.target.value })}/><input className="field" aria-label="Улирал дуусах огноо" type="date" value={semesterEdit.endDate || semesters.find(s => s.id === (semesterEdit.id || semesters[0]?.id))?.endDate || ""} onChange={e => setSemesterEdit({ ...semesterEdit, id: semesterEdit.id || semesters[0]?.id || "", endDate: e.target.value })}/><button className="btn btn-primary" onClick={saveSemesterDates}>Хадгалах</button></div>
-      <div className="mt-4 space-y-2">{timeline.length ? timeline.map(x => <div key={x.kind + x.id} className="deadline-row"><i className={x.kind === "Шалгалт" ? "urgent" : "soon"}/><div className="min-w-0 flex-1"><b className="block break-words">{x.title}</b><small>{x.courseName} · {x.kind}</small></div><span>{x.date}</span></div>) : <Empty>Огноотой assignment/exam нэмэхэд энд харагдана.</Empty>}</div>
+      <div className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]"><select className="field" aria-label="Улирал сонгох" value={selectedSemester?.id || ""} disabled={!semesters.length} onChange={e => { const s = semesters.find(x => x.id === e.target.value); setSemesterEdit({ id: s?.id || "", startDate: s?.startDate || "", endDate: s?.endDate || "" }); }}><option value="">Улирал сонгох</option>{semesters.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select><input className="field" aria-label="Улирал эхлэх огноо" type="date" value={semesterStartDate} disabled={!selectedSemester} onChange={e => setSemesterEdit({ id: selectedSemester?.id || "", startDate: e.target.value, endDate: semesterEndDate })}/><input className="field" aria-label="Улирал дуусах огноо" type="date" value={semesterEndDate} disabled={!selectedSemester} onChange={e => setSemesterEdit({ id: selectedSemester?.id || "", startDate: semesterStartDate, endDate: e.target.value })}/><button className="btn btn-primary" disabled={!selectedSemester} onClick={saveSemesterDates}>Хадгалах</button></div>
+      {selectedSemester && <div className="mt-4 rounded-2xl bg-[#faf5f6] p-4"><b>{selectedSemester.name}</b><p className="mt-1 text-xs text-[#967683]">{arr(selectedSemester.courses).length} хичээл · {semesterStartDate || "Эхлэх огноо сонгоогүй"} – {semesterEndDate || "Дуусах огноо сонгоогүй"}</p>{arr(selectedSemester.courses).length > 0 && <div className="mt-3 flex flex-wrap gap-2">{arr(selectedSemester.courses).map(c => <span key={c.id} className="rounded-full border border-[#eadde1] bg-white px-3 py-1 text-xs font-bold text-[#713a50]">{c.name}</span>)}</div>}</div>}
+      <div className="mt-4 space-y-2">{semesterTimeline.length ? semesterTimeline.map(x => <div key={x.kind + x.id} className="deadline-row"><i className={x.kind === "Шалгалт" ? "urgent" : "soon"}/><div className="min-w-0 flex-1"><b className="block break-words">{x.title}</b><small>{x.courseName} · {x.kind}</small></div><span>{x.date}</span></div>) : <Empty>{selectedSemester ? "Энэ улиралд огноотой assignment/exam нэмэхэд timeline энд харагдана." : "Эхлээд Education хэсэгт улирал үүсгэнэ үү."}</Empty>}</div>
     </Panel>}
     {module === "revision" && <Panel title="Smart Revision" detail="1, 3, 7, 14 хоногийн spaced repetition. Давтсан огнооноос дараагийн үе шат тооцогдоно." icon={RotateCcw}>
       <div className="grid gap-2 md:grid-cols-[1fr_1fr_160px_auto]"><select className="field" value={revisionForm.courseId} onChange={e => setRevisionForm({ ...revisionForm, courseId: e.target.value })}><option value="">Хичээл</option>{courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="field" value={revisionForm.topic} onChange={e => setRevisionForm({ ...revisionForm, topic: e.target.value })} placeholder="Давтах сэдэв"/><input className="field" type="date" value={revisionForm.date} onChange={e => setRevisionForm({ ...revisionForm, date: e.target.value })}/><button className="btn btn-primary" onClick={addRevision}><Plus size={17}/></button></div>
