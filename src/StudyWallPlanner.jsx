@@ -24,12 +24,12 @@ const weekStart = value => {
 };
 const downloadLabel = value => value || "—";
 const MODULES = [
-  ["wall", "Study Wall", CalendarDays], ["semester", "Semester Map", CalendarDays],
-  ["revision", "Smart Revision", RotateCcw], ["breakdown", "Assignment Steps", Check],
-  ["heatmap", "Workload", Grid3X3], ["confidence", "Knowledge", Brain],
-  ["research", "Research Matrix", Library], ["readiness", "Exam Readiness", Target],
-  ["reflection", "Weekly Reflection", Lightbulb], ["focus", "Focus Mode", Timer],
-  ["notes", "Connected Notes", NotebookPen], ["portfolio", "Portfolio", FileText]
+  ["wall", "Суралцах зураглал", CalendarDays], ["semester", "Улирлын зураглал", CalendarDays],
+  ["revision", "Давтлагын хуваарь", RotateCcw], ["breakdown", "Даалгаврын алхам", Check],
+  ["heatmap", "Ачаалал", Grid3X3], ["confidence", "Ойлголт", Brain],
+  ["research", "Судалгааны хүснэгт", Library], ["readiness", "Шалгалтын бэлтгэл", Target],
+  ["reflection", "7 хоногийн дүгнэлт", Lightbulb], ["focus", "Төвлөрөх цаг", Timer],
+  ["notes", "Холбоотой тэмдэглэл", NotebookPen], ["portfolio", "Бүтээлийн сан", FileText]
 ];
 
 function Field({ label, children }) {
@@ -231,7 +231,7 @@ export default function StudyWallPlanner({ education = {}, onChange, notify = ()
   const filteredAssignments = displayAssignments.filter(a => (a.name + " " + a.course.name).toLowerCase().includes(query.toLowerCase()));
 
   return <div className="study-wall space-y-5">
-    <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="eyebrow">Malina · Academics</div><h2 className="serif mt-1 text-2xl font-bold text-[#633848] md:text-3xl">Study Wall Planner</h2><p className="mt-1 text-sm text-[#94727e]">Нэг хичээлийн бүртгэлээс timeline, давтлага, судалгаа болон ахицаа холбох хэсэг.</p></div><div className="w-full sm:w-56"><Field label="Хичээлээр шүүх"><select className="field mt-1" value={courseFilter} onChange={e => setCourseFilter(e.target.value)}><option value="all">Бүх хичээл</option>{courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field></div></div>
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><div className="eyebrow">БОЛОВСРОЛ · СУРАЛЦАХ ТӨЛӨВЛӨГӨӨ</div><h2 className="serif mt-1 text-2xl font-bold text-[#633848] md:text-3xl">Суралцах зураглал</h2><p className="mt-1 text-sm text-[#94727e]">Бүртгэсэн хичээл, даалгавар, шалгалтаа давтлага болон ахицтайгаа холбоно.</p></div><div className="w-full sm:w-56"><Field label="Хичээлээр шүүх"><select className="field mt-1" value={courseFilter} onChange={e => setCourseFilter(e.target.value)}><option value="all">Бүх хичээл</option>{courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field></div></div>
     <div className="education-tabs study-wall-tabs">{MODULES.map(([id, label, Icon]) => <button key={id} className={module === id ? "active" : ""} onClick={() => { setModule(id); setError(""); }}><Icon size={16}/>{label}</button>)}</div>
     {error && <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
     {!courses.length && module !== "reflection" && module !== "focus" ? <Empty>Эхлээд Education хэсэгт улирал, хичээл үүсгэнэ үү. Энэ модуль жишээ хичээл автоматаар үүсгэхгүй.</Empty> : null}
@@ -253,7 +253,7 @@ export default function StudyWallPlanner({ education = {}, onChange, notify = ()
       <div className="grid gap-2 md:grid-cols-[1fr_1fr_160px_auto]"><select className="field" value={revisionForm.courseId} onChange={e => setRevisionForm({ ...revisionForm, courseId: e.target.value })}><option value="">Хичээл</option>{courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select><input className="field" value={revisionForm.topic} onChange={e => setRevisionForm({ ...revisionForm, topic: e.target.value })} placeholder="Давтах сэдэв"/><input className="field" type="date" value={revisionForm.date} onChange={e => setRevisionForm({ ...revisionForm, date: e.target.value })}/><button className="btn btn-primary" onClick={addRevision}><Plus size={17}/></button></div>
       <div className="mt-4 space-y-2">{revisions.length ? revisions.slice().sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999")).map(r => <div key={r.id} className="deadline-row"><Brain size={18}/><div className="min-w-0 flex-1"><b>{courseName(r.courseId)} · {r.topic}</b><small>Давталт {Math.min(4, (r.step || 0) + 1)}/4 · 1 / 3 / 7 / 14 өдөр</small></div><span>{r.completed ? "Дууссан" : r.dueDate}</span>{!r.completed && <button className="btn btn-soft text-xs" onClick={() => completeRevision(r)}>Давтлаа</button>}<button className="icon-btn" aria-label="Давтлагыг устгах" onClick={() => removeExtra("revisions", r.id)}><Trash2 size={14}/></button></div>) : <Empty>Хичээл, сэдэв сонгоод давтлагын цикл эхлүүлнэ.</Empty>}</div>
     </Panel>}
-    {module === "breakdown" && <Panel title="Assignment Breakdown & Rubric" detail="1. Education → Assignments хэсэгт даалгавар нэмнэ. 2. Энд даалгавраа сонгоод жижиг алхмуудаа оруулна." icon={Check}>
+    {module === "breakdown" && <Panel title="Даалгаврын алхам ба үнэлгээний шалгуур" detail="Даалгавраа жижиг ажил болгон хувааж, хэрхэн үнэлэхийг шалгуураар тэмдэглэнэ." icon={Check}>
       {displayAssignments.length > 0 ? <>
       <div className="grid gap-2 md:grid-cols-[1fr_1fr_160px_100px_100px_auto]"><label className="block text-xs font-bold text-[#694454]">Даалгавар<select className="field mt-1" aria-label="Алхам холбох даалгавар" value={stepAssignmentId} onChange={e => setStepForm({ ...stepForm, assignmentId: e.target.value })}>{displayAssignments.map(a => <option key={a.id} value={a.id}>{a.course.name} · {a.name}</option>)}</select></label><label className="block text-xs font-bold text-[#694454]">Хийх алхам<input className="field mt-1" aria-label="Хийх алхам" value={stepForm.name} onChange={e => setStepForm({ ...stepForm, name: e.target.value })} placeholder="Жишээ: эх сурвалж 3 унших"/></label><label className="block text-xs font-bold text-[#694454]">Дуусгах хугацаа<input className="field mt-1" aria-label="Алхамын дуусах хугацаа" type="date" value={stepForm.dueDate} onChange={e => setStepForm({ ...stepForm, dueDate: e.target.value })}/></label><label className="block text-xs font-bold text-[#694454]">Зарцуулах минут<input className="field mt-1" aria-label="Алхамын минут" type="number" min="1" value={stepForm.minutes} onChange={e => setStepForm({ ...stepForm, minutes: e.target.value })}/></label><span className="self-end pb-3 text-xs text-[#967683]">минут</span><button className="btn btn-primary self-end" aria-label="Дэд даалгавар нэмэх" disabled={!stepAssignmentId || !stepForm.name.trim()} onClick={addSubtask}><Plus size={17}/> Нэмэх</button></div>
       <p className="mt-2 text-xs text-[#967683]">Нэмсэн алхмаа доорх даалгаврын картнаас чагталж явцаа шинэчилнэ.</p>
