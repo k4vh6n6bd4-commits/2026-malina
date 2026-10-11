@@ -84,6 +84,7 @@ function App(){
   const [syncReady,setSyncReady]=useState(false);
   const [syncStatus,setSyncStatus]=useState("Офлайн");
   const [syncConflict,setSyncConflict]=useState(null);
+  const [cloudEmptyChoice,setCloudEmptyChoice]=useState(false);
   const syncBaseRef=useRef("");
   const syncTimerRef=useRef(null);
   const syncingRef=useRef(false);
@@ -140,6 +141,7 @@ function App(){
       syncBaseRef.current=updatedAt;
       localStorage.setItem(cloudTimestampKey(authUser.id),syncBaseRef.current);
       setSyncConflict(null);
+      setCloudEmptyChoice(false);
       setSyncStatus(`Cloud-д хадгаллаа · ${countsLabel(nextData)}`);
       return true;
     }catch(error){
@@ -155,8 +157,9 @@ function App(){
     try{
       const result=await fetchCloud();
       if(!result.data){
-        setSyncStatus('Cloud одоогоор хоосон байна');
+        setSyncStatus(hasMeaningfulData?'Cloud хоосон байна · Локал мэдээлэл хэвээр үлдлээ':'Cloud одоогоор хоосон байна');
         setSyncConflict(null);
+        setCloudEmptyChoice(!!hasMeaningfulData);
         return false;
       }
       if(hasMeaningfulData&&!force){
@@ -169,6 +172,7 @@ function App(){
       syncBaseRef.current=result.updatedAt||'';
       localStorage.setItem(cloudTimestampKey(authUser.id),syncBaseRef.current);
       setSyncConflict(null);
+      setCloudEmptyChoice(false);
       setSyncReady(true);
       setSyncStatus(`Cloud-оос сэргээгдлээ · ${countsLabel(result.data)}`);
       return true;
@@ -192,8 +196,9 @@ function App(){
 },[]);
 
   useEffect(()=>{
-    if(!authUser){setSyncReady(false);setSyncStatus('Офлайн');return;}
+    if(!authUser){setSyncReady(false);setCloudEmptyChoice(false);setSyncStatus('Офлайн');return;}
     let active=true;
+    setCloudEmptyChoice(false);
     syncBaseRef.current=localStorage.getItem(cloudTimestampKey(authUser.id))||'';
     setSyncReady(false);setSyncStatus('Cloud шалгаж байна…');
     fetchCloud()
@@ -202,6 +207,7 @@ function App(){
         if(result.data){
           syncBaseRef.current=result.updatedAt||'';
           if(hasMeaningfulData){
+            setCloudEmptyChoice(false);
             setSyncConflict(result.data);
             setSyncStatus(`Сонголт хэрэгтэй · Cloud: ${countsLabel(result.data)}`);
             return;
@@ -212,7 +218,13 @@ function App(){
           setSyncStatus(`Cloud-оос сэргээгдлээ · ${countsLabel(result.data)}`);
         }else{
           setSyncReady(true);
-          setSyncStatus(hasMeaningfulData?'Cloud хоосон · Энэ төхөөрөмжийн мэдээллийг Cloud-д хадгална уу':'Cloud хоосон · мэдээлэл нэмэхэд автоматаар хадгална');
+          if(hasMeaningfulData){
+            setCloudEmptyChoice(true);
+            setSyncStatus('Cloud хоосон · Локал мэдээлэл хэвээр байна; upload хийхээ сонгоно уу');
+          }else{
+            setCloudEmptyChoice(false);
+            setSyncStatus('Cloud хоосон · мэдээлэл нэмэхэд автоматаар хадгална');
+          }
         }
       })
       .catch(error=>{
@@ -222,11 +234,11 @@ function App(){
   },[authUser]);
 
   useEffect(()=>{
-    if(!authUser||!syncReady||syncConflict||!hasMeaningfulData)return;
+    if(!authUser||!syncReady||syncConflict||cloudEmptyChoice||!hasMeaningfulData)return;
     clearTimeout(syncTimerRef.current);
     syncTimerRef.current=setTimeout(()=>syncToCloud(data),1200);
     return()=>clearTimeout(syncTimerRef.current);
-  },[data,authUser,syncReady,syncConflict]);
+  },[data,authUser,syncReady,syncConflict,cloudEmptyChoice]);
 
   async function loginUser(email,password){
     const {data:{user},error}=await requireSupabase().auth.signInWithPassword({email,password});
@@ -348,13 +360,22 @@ function App(){
     };
     r.readAsText(file);
   }
-  function resetAll(){
-    if(confirm("Бүх planner мэдээллийг устгах уу? Энэ үйлдлийг буцаах боломжгүй.")){
-      setData(normalizePlannerData({}, {withStarterHabits:true}));notify("Бүх мэдээлэл цэвэрлэгдлээ");
-    }
+  async function resetAll(){
+    if(!confirm("Энэ төхөөрөмжийн бүх planner мэдээллийг устгана. Нэвтэрсэн бол ижил account-ын Cloud мэдээлэл ч шинэчлэгдэж, бусад төхөөрөмжид нөлөөлнө. Энэ үйлдлийг буцаах боломжгүй."))return;
+    clearTimeout(syncTimerRef.current);
+    const resetData=normalizePlannerData({}, {withStarterHabits:true});
+    setData(resetData);
+    setSyncConflict(null);
+    setCloudEmptyChoice(false);
+    if(authUser){
+      // Wait for an existing sync to finish so it cannot overwrite this intentional reset.
+      for(let i=0;i<50&&syncingRef.current;i++)await new Promise(resolve=>setTimeout(resolve,100));
+      const ok=await syncToCloud(resetData,true);
+      notify(ok?"Локал болон Cloud planner reset хийгдлээ":"Локал reset хийгдлээ. Cloud шинэчлэгдээгүй байж болзошгүй — синк төлөвийг шалгана уу.");
+    }else notify("Энэ төхөөрөмжийн planner reset хийгдлээ");
   }
 
-  const common={data, water, today, addTask,updateTask,toggleTask,deleteTask,addHabit,toggleHabit,setWater,addExpense,editExpense,deleteExpense,updateFinance,addGoal,updateGoal,toggleGoal,deleteGoal,addGrocery,toggleGrocery,deleteGrocery,setMeal,addEvent,updateEvent,editEvent,deleteEvent,notify,date,setDate,exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud};
+  const common={data, water, today, addTask,updateTask,toggleTask,deleteTask,addHabit,toggleHabit,setWater,addExpense,editExpense,deleteExpense,updateFinance,addGoal,updateGoal,toggleGoal,deleteGoal,addGrocery,toggleGrocery,deleteGrocery,setMeal,addEvent,updateEvent,editEvent,deleteEvent,notify,date,setDate,exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,cloudEmptyChoice,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud};
   function navigate(destination,prompt=""){setAssistantPrompt(prompt);setPage(destination);setMobileOpen(false)}
   const Page=page==="dashboard"?<MyLife {...common} navigate={navigate} Card={Card} SectionTitle={SectionTitle}/>:page==="daily"?<SmartPlanner data={data} setData={setData} Card={Card} SectionTitle={SectionTitle} toggleTask={toggleTask} updateTask={updateTask}/>:page==="wellness"?<Wellness {...common} Card={Card} SectionTitle={SectionTitle}/>:page==="tasks"?<Tasks {...common}/>:page==="habits"?<Habits {...common}/>:page==="finance"?<Finance {...common}/>:page==="meals"?<Meals {...common}/>:page==="calendar"?<CalendarPage {...common}/>:page==="goals"?<Goals {...common}/>:page==="education"?<Education education={data.education} onChange={setEducation} Card={Card} SectionTitle={SectionTitle} Empty={Empty} notify={notify} addTask={addTask} syncEducationEvent={syncEducationEvent} today={today}/>:page==="assistant"?<Assistant key={assistantPrompt||"assistant"} initialPrompt={assistantPrompt} data={data} setData={setData} Card={Card} SectionTitle={SectionTitle}/>:<SettingsPage {...common}/>;
 
@@ -495,7 +516,7 @@ function GoalCard({goal,finance,updateGoal,toggleGoal,deleteGoal,addTask,taskExi
  {goal.plan&&<div className="mt-4 rounded-2xl bg-[#f8edf1] p-4"><div className="plan-flow"><b>Том зорилго</b><span>↓</span><b>{goal.plan.milestones.length} алхам</b><span>↓</span><b>{goal.plan.weekly.length} долоо хоногийн ажил</b><span>↓</span><b>{goal.plan.today.text}</b></div><button className="btn btn-soft mt-3 w-full" disabled={taskExists} onClick={()=>addTask(goal.plan.today.text,goal.plan.today.date,{sourceId:goal.plan.today.sourceId,goalId:goal.id,priority:"medium"})}>{taskExists?"Өнөөдрийн ажил аль хэдийн нэмэгдсэн":"Өнөөдрийн алхмыг Tasks-д нэмэх"}</button></div>}</Card>
 }
 
-function SettingsPage({exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud,data}){
+function SettingsPage({exportBackup,importBackup,resetAll,fileRef,authUser,authLoading,syncStatus,syncConflict,cloudEmptyChoice,loginUser,signupUser,logoutUser,useLocalAndUpload,useCloudData,syncToCloud,pullFromCloud,data}){
   const [mode,setMode]=useState("login");
   const [email,setEmail]=useState("");
   const [password,setPassword]=useState("");
@@ -517,6 +538,7 @@ function SettingsPage({exportBackup,importBackup,resetAll,fileRef,authUser,authL
       {authLoading?<div className="rounded-2xl bg-[#faf5f6] p-4 text-sm text-[#80616d]">Нэвтрэлтийн төлөв шалгаж байна…</div>:authUser?<div className="space-y-3">
         <div className="rounded-2xl bg-[#f5e8ed] p-4"><div className="text-xs font-bold uppercase tracking-widest text-[#9b7784]">Нэвтэрсэн account</div><div className="mt-1 font-bold text-[#633848]">{authUser.email||"Account"}</div><div className="mt-1 text-xs text-[#8b6975]">{syncStatus}</div></div>
         {syncConflict?<div className="rounded-2xl border border-[#e8c9d2] bg-[#fff7f8] p-4"><b className="text-[#713a50]">2 төхөөрөмжийн мэдээлэл зөрж байна</b><p className="mt-1 text-sm text-[#8b6975]">Cloud дээр {((syncConflict.tasks||[]).length)} task зэрэг мэдээлэл байна. Аль мэдээллийг үндсэн болгохоо өөрөө сонгоно.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><button className="btn btn-primary" onClick={useLocalAndUpload}>📱 Энэ төхөөрөмж → Cloud</button><button className="btn btn-soft" onClick={useCloudData}>☁️ Cloud → энэ төхөөрөмж</button></div></div>:null}
+        {cloudEmptyChoice&&!syncConflict?<div className="rounded-2xl border border-[#e8c9d2] bg-[#fff7f8] p-4"><b className="text-[#713a50]">Cloud өгөгдөл одоогоор хоосон байна</b><p className="mt-1 text-sm text-[#8b6975]">Энэ төхөөрөмжийн локал мэдээллийг өөрчлөхгүй хадгаллаа. Зөвшөөрвөл доорх товчоор Cloud-д эхний удаа хуулна.</p><button className="btn btn-primary mt-3 w-full" onClick={useLocalAndUpload}>Энэ төхөөрөмж → Cloud-д анх удаа хадгалах</button></div>:null}
         <div className="rounded-2xl bg-[#faf5f6] p-4"><div className="text-sm font-bold text-[#633848]">Sync чиглэл</div><p className="mt-1 text-xs leading-5 text-[#8b6975]">Laptop дээр мэдээллээ хадгалсан бол <b>Энэ төхөөрөмж → Cloud</b>. Дараа нь утсан дээр <b>Cloud → энэ төхөөрөмж</b> гэж татна.</p><div className="mt-3 grid gap-2 sm:grid-cols-2"><button className="btn btn-primary" onClick={useLocalAndUpload}>↑ Энэ төхөөрөмж → Cloud</button><button className="btn btn-soft" onClick={()=>pullFromCloud(true)}>↓ Cloud → энэ төхөөрөмж</button></div></div>
         <div className="flex flex-wrap gap-2"><button className="btn btn-soft" onClick={()=>syncToCloud(data,true)}>Cloud-д одоо хадгалах</button><button className="btn btn-soft" onClick={()=>pullFromCloud(true)}>Cloud-оос одоо татах</button><button className="btn btn-soft" onClick={logoutUser}>Гарах</button></div>
       </div>:<div className="space-y-3">
